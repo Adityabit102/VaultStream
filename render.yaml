@@ -1,0 +1,46 @@
+# VaultStream — Render blueprint (backend + Postgres + Redis).
+# Frontend deploys separately on Vercel (see DEPLOY.md).
+# Deploy: push to GitHub, then Render → New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: vaultstream-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vaultstream-db
+          property: connectionString
+      - key: LOCAL_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: vaultstream-redis
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false            # set to your Vercel URL, e.g. https://vaultstream.vercel.app
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: NOTIFY_WEBHOOK_URL
+        sync: false            # optional Slack/Discord webhook for FRAUD alerts
+      - key: MODEL_PATH
+        value: models/fraud_model.pkl
+
+databases:
+  - name: vaultstream-db
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+
+# Render Key Value (Redis-compatible) for the feature store
+keyValue:
+  - name: vaultstream-redis
+    plan: starter
+    ipAllowList: []

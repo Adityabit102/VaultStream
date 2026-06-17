@@ -1,0 +1,25 @@
+# Monorepo root gitignore
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.local.example
+
+# OS files
+.DS_Store
+
+# IEEE-CIS Datasets
+data/raw/
+
+# Generated Model Lab run artifacts
+backend/models/lab_runs/
+
+# Next.js build output (also covered by frontend/.gitignore)
+.next/

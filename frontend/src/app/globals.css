@@ -1,0 +1,266 @@
+@import 'tailwindcss';
+
+/* ============================================================
+   VaultStream — Pastel / Luxe Design System
+   Light, editorial, "private-bank" aesthetic.
+   ============================================================ */
+
+@theme {
+  /* ============================================================
+     Palette: "Sage & Champagne" — earthy sage greens + warm beige.
+     Token names are kept stable (violet/rose/gold/mint/sky) so every
+     component re-themes automatically; the *values* below define the
+     actual hues. Roughly: violet=sage, rose=clay, gold=tan,
+     mint=fern, sky=stone.
+     ============================================================ */
+
+  /* ---- Canvas & surfaces ---- */
+  --color-canvas: #f4efe6;          /* warm cream base */
+  --color-canvas-2: #e9eee2;        /* faint sage wash */
+  --color-surface: #fffdf8;         /* warm white */
+  --color-surface-2: #f7f4ec;       /* tinted card */
+  --color-veil: rgba(255, 253, 248, 0.60);
+
+  /* ---- Ink / text ---- */
+  --color-ink: #2f372a;             /* deep forest */
+  --color-ink-soft: #5f6657;        /* secondary */
+  --color-ink-faint: #969b8c;       /* tertiary / labels */
+  --color-line: rgba(47, 55, 42, 0.10);
+  --color-line-strong: rgba(47, 55, 42, 0.18);
+
+  /* ---- Pastel earth accents ---- */
+  --color-violet: #8aa176;          /* primary · sage */
+  --color-violet-soft: #d3ddc6;
+  --color-rose: #cf9d7e;            /* clay / blush */
+  --color-rose-soft: #f0ddcb;
+  --color-gold: #d8be94;            /* champagne tan */
+  --color-gold-soft: #efe3cd;
+  --color-mint: #a7c293;            /* light fern */
+  --color-mint-soft: #dde9d2;
+  --color-sky: #b3c4a8;             /* sage stone */
+  --color-sky-soft: #e2eadb;
+
+  /* ---- Functional fraud semantics (earthy, not neon) ---- */
+  --color-safe: #6f9460;            /* fern green */
+  --color-safe-soft: #e0ecd7;
+  --color-warn: #c79a52;            /* tan amber */
+  --color-warn-soft: #f3e8d2;
+  --color-alert: #c0714f;           /* terracotta clay */
+  --color-alert-soft: #f3ddd0;
+
+  /* ---- Typography ---- */
+  --font-display: var(--font-fraunces), 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SF Mono', monospace;
+
+  /* ---- Radii ---- */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+  --radius-xl: 40px;
+  --radius-pill: 999px;
+
+  /* ---- Elevation (soft, layered, no harsh shadows) ---- */
+  --shadow-sm: 0 1px 2px rgba(47, 55, 42, 0.04), 0 2px 8px rgba(47, 55, 42, 0.05);
+  --shadow-md: 0 6px 20px rgba(47, 55, 42, 0.08), 0 2px 6px rgba(47, 55, 42, 0.05);
+  --shadow-lg: 0 24px 60px rgba(47, 55, 42, 0.13), 0 8px 24px rgba(47, 55, 42, 0.08);
+  --shadow-glow: 0 12px 40px rgba(138, 161, 118, 0.26);
+}
+
+/* Signature earth gradients reused across the app */
+:root {
+  --grad-aurora: linear-gradient(120deg, #8aa176 0%, #b3c4a8 34%, #d8be94 70%, #cf9d7e 100%);
+  --grad-mist: linear-gradient(160deg, #f4efe6 0%, #e9eee2 55%, #eef1e7 100%);
+  --grad-gold: linear-gradient(120deg, #d8be94 0%, #ecdcbf 50%, #d3ddc6 100%);
+  --grad-violet-rose: linear-gradient(120deg, #8aa176 0%, #cf9d7e 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--grad-mist);
+  background-attachment: fixed;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, .display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.04;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.data, .mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-ink-faint);
+}
+
+.text-gradient {
+  background: var(--grad-violet-rose);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* italic/serif glyphs overhang their box; padding stops background-clip:text
+     from cropping the final letter, negative margin keeps the layout flow. */
+  display: inline-block;
+  padding: 0.02em 0.16em 0.12em 0.02em;
+  margin: -0.02em -0.16em -0.12em -0.02em;
+}
+
+/* ============================================================
+   Reusable component classes
+   ============================================================ */
+
+.glass {
+  background: var(--color-veil);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: var(--shadow-md);
+}
+
+.lux-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
+}
+
+.lux-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 13px 26px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, background 0.25s ease, color 0.25s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--grad-violet-rose);
+  color: #fff;
+  box-shadow: var(--shadow-glow);
+}
+.btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 18px 50px rgba(139, 124, 246, 0.34); }
+
+.btn-ghost {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-color: var(--color-line-strong);
+  box-shadow: var(--shadow-sm);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--color-surface-2); transform: translateY(-2px); }
+
+.btn-gold {
+  background: var(--grad-gold);
+  color: #5a3d22;
+  box-shadow: 0 12px 36px rgba(228, 192, 138, 0.4);
+}
+.btn-gold:hover:not(:disabled) { transform: translateY(-2px); }
+
+/* Badges / pills */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+}
+.badge-safe   { background: var(--color-safe-soft);  color: #277a55; border-color: rgba(79,178,134,0.3); }
+.badge-warn   { background: var(--color-warn-soft);  color: #9a6320; border-color: rgba(217,151,74,0.3); }
+.badge-alert  { background: var(--color-alert-soft); color: #b23a54; border-color: rgba(226,104,127,0.3); }
+.badge-neutral{ background: var(--color-canvas-2);   color: var(--color-ink-soft); border-color: var(--color-line); }
+
+/* Section rhythm */
+.section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 96px 32px;
+}
+@media (max-width: 768px) { .section { padding: 64px 20px; } }
+
+/* Soft aurora blobs for backgrounds */
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-violet-soft); border-radius: 999px; border: 2px solid var(--color-canvas); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-violet); }
+
+/* Selection */
+::selection { background: var(--color-rose-soft); color: var(--color-ink); }
+
+/* ============================================================
+   Keyframes
+   ============================================================ */
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes pulseSoft { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes flashAlert {
+  0% { background: var(--color-alert-soft); box-shadow: 0 0 0 1px var(--color-alert); }
+  100% { background: var(--color-surface); box-shadow: var(--shadow-sm); }
+}
+
+.animate-fade-up { animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-floaty { animation: floaty 6s ease-in-out infinite; }
+.flash-alert { animation: flashAlert 1s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

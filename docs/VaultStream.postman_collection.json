@@ -1,0 +1,71 @@
+{
+  "info": {
+    "name": "VaultStream API",
+    "description": "Real-time fraud detection API. Set {{base}} (e.g. http://localhost:3001) and {{token}} (mock-token-admin / mock-token-analyst / mock-token-viewer).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base", "value": "http://localhost:3001" },
+    { "key": "token", "value": "mock-token-admin" }
+  ],
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{base}}/health", "auth": { "type": "noauth" } }
+    },
+    {
+      "name": "Ingest transaction (scenario inject)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base}}/v1/ingest",
+        "auth": { "type": "noauth" },
+        "body": { "mode": "raw", "raw": "{\n  \"transaction_id\": \"tx_demo_1\",\n  \"entity_id\": \"acct_demo\",\n  \"amount\": 7200,\n  \"merchant_id\": \"merch_luxury_watches\",\n  \"device_fingerprint\": \"dev_x\",\n  \"timestamp\": \"2026-06-17T12:00:00Z\",\n  \"profile\": \"fraud\"\n}" }
+      }
+    },
+    {
+      "name": "Predict (real model)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base}}/v1/predict",
+        "body": { "mode": "raw", "raw": "{\n  \"transaction_id\": \"tx_p1\",\n  \"entity_id\": \"acct_p\",\n  \"amount\": 9000,\n  \"device_fingerprint\": \"dev_y\"\n}" }
+      }
+    },
+    { "name": "List alerts", "request": { "method": "GET", "url": "{{base}}/v1/alerts" } },
+    {
+      "name": "Case · set status",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base}}/v1/alerts/:id/status",
+        "body": { "mode": "raw", "raw": "{ \"status\": \"investigating\" }" }
+      }
+    },
+    {
+      "name": "Case · add note",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base}}/v1/alerts/:id/notes",
+        "body": { "mode": "raw", "raw": "{ \"body\": \"Escalating to L2.\" }" }
+      }
+    },
+    { "name": "Analytics summary", "request": { "method": "GET", "url": "{{base}}/v1/analytics/summary?days=14" } },
+    { "name": "Model drift (PSI)", "request": { "method": "GET", "url": "{{base}}/v1/analytics/drift" } },
+    { "name": "Audit feed", "request": { "method": "GET", "url": "{{base}}/v1/audit?limit=50" } },
+    { "name": "Lab · algorithms", "request": { "method": "GET", "url": "{{base}}/v1/lab/algorithms" } },
+    {
+      "name": "Lab · train (SSE)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base}}/v1/lab/train",
+        "body": { "mode": "raw", "raw": "{ \"algorithm\": \"xgboost\", \"sample_size\": 6000 }" }
+      }
+    },
+    { "name": "Admin · users", "request": { "method": "GET", "url": "{{base}}/v1/admin/users" } },
+    { "name": "Metrics (Prometheus)", "request": { "method": "GET", "url": "{{base}}/metrics", "auth": { "type": "noauth" } } }
+  ]
+}

@@ -1,0 +1,92 @@
+version: '3.8'
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    command:
+      - redpanda
+      - start
+      - --smp
+      - '1'
+      - --reserve-memory
+      - 0M
+      - --overprovisioned
+      - --node-id
+      - '0'
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "9644:9644"
+
+  upstash-redis-local:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=vault
+      - POSTGRES_PASSWORD=vault
+      - POSTGRES_DB=vaultstream
+    ports:
+      - "5433:5432"
+    volumes:
+      - vaultstream_pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - REDPANDA_BROKER=redpanda:29092
+      - LOCAL_REDIS_URL=redis://upstash-redis-local:6379
+      - DATABASE_URL=postgresql+psycopg2://vault:vault@postgres:5432/vaultstream
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - MODEL_PATH=models/fraud_model.pkl
+    depends_on:
+      - redpanda
+      - upstash-redis-local
+      - postgres
+    env_file:
+      - ./backend/.env
+
+  consumer:
+    build:
+      context: ./backend
+    command: python -u consumers/feature_store_consumer.py
+    environment:
+      - REDPANDA_BROKER=redpanda:29092
+      - LOCAL_REDIS_URL=redis://upstash-redis-local:6379
+      - SENTRY_DSN=${SENTRY_DSN}
+    depends_on:
+      - redpanda
+      - upstash-redis-local
+    env_file:
+      - ./backend/.env
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_WS_API_URL=ws://localhost:8000/ws/alerts
+      - NEXT_PUBLIC_HTTP_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
+    depends_on:
+      - backend
+    env_file:
+      - ./frontend/.env.local
+
+volumes:
+  vaultstream_pgdata:
+

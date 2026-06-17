@@ -1,0 +1,7 @@
+{
+  "python.defaultInterpreterPath": "./backend/.venv/bin/python",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/backend"
+  ],
+  "python.analysis.useLibraryCodeForTypes": true
+}
