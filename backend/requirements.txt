@@ -54,3 +54,4 @@ psycopg2-binary==2.9.10
 pytest==8.3.4
 shap==0.46.0
 prometheus-client==0.21.1
+python-multipart==0.0.20
