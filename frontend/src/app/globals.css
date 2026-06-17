@@ -264,3 +264,74 @@ h1, h2, h3, h4, .display {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ============================================================
+   Dark variant — "Sage at dusk". Token names stay identical so
+   every component re-themes automatically; only the values shift
+   to a deep forest/charcoal canvas with warm light ink.
+   ============================================================ */
+:root[data-theme='dark'] {
+  --color-canvas: #14160f;
+  --color-canvas-2: #1b1e15;
+  --color-surface: #1f2319;
+  --color-surface-2: #272c1f;
+  --color-veil: rgba(31, 35, 25, 0.66);
+
+  --color-ink: #eef0e6;
+  --color-ink-soft: #b6bca8;
+  --color-ink-faint: #828a73;
+  --color-line: rgba(238, 240, 230, 0.10);
+  --color-line-strong: rgba(238, 240, 230, 0.18);
+
+  --color-violet: #9cb487;
+  --color-violet-soft: #34402a;
+  --color-rose: #d9a886;
+  --color-rose-soft: #45342a;
+  --color-gold: #e0c694;
+  --color-gold-soft: #463c28;
+  --color-mint: #b3cd9d;
+  --color-mint-soft: #33402b;
+  --color-sky: #bccfb1;
+  --color-sky-soft: #313b2b;
+
+  --color-safe: #82ac6f;
+  --color-safe-soft: #2a3a23;
+  --color-warn: #d6ad63;
+  --color-warn-soft: #423620;
+  --color-alert: #d68863;
+  --color-alert-soft: #432d22;
+
+  --grad-mist: linear-gradient(160deg, #14160f 0%, #181b12 55%, #1b1f15 100%);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+:root[data-theme='dark'] .glass { border-color: rgba(238, 240, 230, 0.08); }
+:root[data-theme='dark'] .badge-safe  { color: #a6cf90; }
+:root[data-theme='dark'] .badge-warn  { color: #e2c074; }
+:root[data-theme='dark'] .badge-alert { color: #e6a07e; }
+
+/* Smooth the canvas/text crossfade when toggling theme */
+html { transition: none; }
+body { transition: background 0.4s ease, color 0.4s ease; }
+
+/* ============================================================
+   Skeleton loaders — shimmer placeholders while data fetches
+   ============================================================ */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-sm);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  animation: skel 1.4s ease-in-out infinite;
+}
+:root[data-theme='dark'] .skeleton::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent); }
+@keyframes skel { 100% { transform: translateX(100%); } }

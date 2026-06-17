@@ -5,20 +5,31 @@ import FeatureScatterPlot from '@/components/FeatureScatterPlot';
 import DynamicFooter from '@/components/DynamicFooter';
 import WorkspaceHeader from '@/components/site/WorkspaceHeader';
 import AppBackground from '@/components/site/AppBackground';
+import { Skeleton } from '@/components/ui';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
 import { useRole } from '@/components/RoleProvider';
+import { useNotifications } from '@/components/NotificationProvider';
 import { apiUrl, getToken, WS_BASE } from '@/lib/api';
 import { takeAction } from '@/app/actions';
+
+const PAGE = 50;
 
 export default function Workspace() {
   const { user, isMock } = useAuth();
   const { isAdmin } = useRole();
+  const { push: pushNotification } = useNotifications();
   const [modelHash, setModelHash] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<AlertType[]>([]);
   const [selectedAlert, setSelectedAlert] = useState<AlertType | null>(null);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [offset, setOffset] = useState(PAGE);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const ws = useRef<WebSocket | null>(null);
+  const notifyRef = useRef(pushNotification);
+  useEffect(() => { notifyRef.current = pushNotification; }, [pushNotification]);
 
   const [toast, setToast] = useState<{ message: string; type: 'safe' | 'warn' | 'alert' } | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,11 +98,17 @@ export default function Workspace() {
       if (!active) return;
 
       try {
-        const res = await fetch(apiUrl('/v1/alerts'), { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(apiUrl(`/v1/alerts?limit=${PAGE}&offset=0`), { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
-        if (active && Array.isArray(data)) setAlerts(data);
+        if (active && Array.isArray(data)) {
+          setAlerts(data);
+          setHasMore(data.length === PAGE);
+          setOffset(PAGE);
+        }
       } catch (err) {
         console.error('Failed to fetch initial alerts', err);
+      } finally {
+        if (active) setLoadingInitial(false);
       }
       if (!active) return;
 
@@ -113,6 +130,9 @@ export default function Workspace() {
             newAlert.timestamp = Date.now();
             if (!active) return;
             if (newAlert.risk_label === 'FRAUD' && soundRef.current) ping();
+            if (newAlert.risk_label === 'FRAUD' || newAlert.risk_label === 'SUSPICIOUS') {
+              notifyRef.current({ id: String(newAlert.id), entity_id: String(newAlert.entity_id ?? ''), transaction_id: String(newAlert.transaction_id ?? ''), risk_score: Number(newAlert.risk_score ?? 0), risk_label: String(newAlert.risk_label) });
+            }
             setAlerts((prev) => (prev.some((a) => a.id === newAlert.id) ? prev : [newAlert, ...prev].slice(0, 50)));
           } catch (err) {
             console.error('Failed to parse alert', err);
@@ -218,9 +238,44 @@ export default function Workspace() {
       risk_score: Number(data.risk_score ?? 0),
       risk_label: data.risk_label as AlertType['risk_label'],
       feature_vector: (data.feature_vector as number[]) ?? [0, 0, 0, 0, 0],
+      rules_triggered: (data.rules_triggered as string[]) ?? [],
       timestamp: Date.now(),
     };
+    if (alert.risk_label === 'FRAUD' || alert.risk_label === 'SUSPICIOUS') {
+      notifyRef.current({ id: alert.id, entity_id: alert.entity_id, transaction_id: alert.transaction_id, risk_score: alert.risk_score, risk_label: alert.risk_label });
+    }
     setAlerts((prev) => (prev.some((a) => a.id === alert.id) ? prev : [alert, ...prev].slice(0, 50)));
+  };
+
+  // Load older persisted alerts (pagination). Appends and de-dupes by id.
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const token = await getToken(user?.role || 'viewer');
+      const res = await fetch(apiUrl(`/v1/alerts?limit=${PAGE}&offset=${offset}`), { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setAlerts((prev) => {
+          const seen = new Set(prev.map((a) => a.id));
+          return [...prev, ...data.filter((a: AlertType) => !seen.has(a.id))];
+        });
+        setHasMore(data.length === PAGE);
+        setOffset((o) => o + PAGE);
+      }
+    } catch (e) { console.error('Load more failed', e); }
+    setLoadingMore(false);
+  };
+
+  // Download the full transactions/alerts history as CSV from the backend.
+  const exportCsv = async () => {
+    const token = await getToken(user?.role || 'viewer');
+    const res = await fetch(apiUrl('/v1/alerts/export'), { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) { showToast('Export failed', 'alert'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'vaultstream-transactions.csv'; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const inject = async (opts: {
@@ -459,11 +514,29 @@ export default function Workspace() {
             </button>
           </div>
 
-          <ThreatTicker
-            alerts={displayedAlerts}
-            onSelectAlert={setSelectedAlert}
-            selectedAlertId={selectedAlert?.id}
-          />
+          {loadingInitial ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} height={62} radius={14} />)}
+            </div>
+          ) : (
+            <ThreatTicker
+              alerts={displayedAlerts}
+              onSelectAlert={setSelectedAlert}
+              selectedAlertId={selectedAlert?.id}
+            />
+          )}
+
+          {/* Pagination + export */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+            {hasMore && !streaming && (
+              <button onClick={loadMore} disabled={loadingMore} className="btn btn-ghost" style={{ flex: 1, padding: '9px 0', fontSize: 12 }}>
+                {loadingMore ? 'Loading…' : 'Load more'}
+              </button>
+            )}
+            <button onClick={exportCsv} title="Download full transaction history as CSV" className="btn btn-ghost" style={{ padding: '9px 12px', fontSize: 12, marginLeft: hasMore && !streaming ? 0 : 'auto' }}>
+              ↓ CSV
+            </button>
+          </div>
         </section>
 
         {/* Center: feature correlation */}

@@ -3,16 +3,22 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useRole } from '@/components/RoleProvider';
+import { ThemeToggle } from '@/components/ThemeProvider';
+import NotificationBell from './NotificationBell';
 import Logo from './Logo';
 
 export default function WorkspaceHeader({ modelHash }: { modelHash?: string | null }) {
   const { user, signOut } = useAuth();
   const { isAdmin, role } = useRole();
   const pathname = usePathname();
+  const isAnalyst = role === 'analyst' || role === 'admin';
 
   const navItems = [
     { href: '/workspace', label: 'Workspace' },
     { href: '/analytics', label: 'Analytics' },
+    ...(isAnalyst ? [{ href: '/batch', label: 'Batch' }] : []),
+    { href: '/rules', label: 'Rules' },
+    { href: '/status', label: 'Status' },
     ...(isAdmin ? [{ href: '/lab', label: 'Model Lab' }, { href: '/admin', label: 'Admin' }] : []),
   ];
 
@@ -35,7 +41,7 @@ export default function WorkspaceHeader({ modelHash }: { modelHash?: string | nu
         {modelHash && (
           <span className="badge badge-neutral" style={{ fontSize: 10 }}>model v{modelHash}</span>
         )}
-        <nav style={{ display: 'flex', gap: 6 }}>
+        <nav style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {navItems.map((n) => {
             const active = pathname === n.href;
             return (
@@ -43,9 +49,9 @@ export default function WorkspaceHeader({ modelHash }: { modelHash?: string | nu
                 key={n.href}
                 href={n.href}
                 style={{
-                  padding: '7px 14px',
+                  padding: '7px 12px',
                   borderRadius: 999,
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: 600,
                   textDecoration: 'none',
                   color: active ? '#fff' : 'var(--color-ink-soft)',
@@ -59,9 +65,15 @@ export default function WorkspaceHeader({ modelHash }: { modelHash?: string | nu
         </nav>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <NotificationBell />
+        <ThemeToggle />
         {user ? (
           <>
+            <Link href="/settings" title="Settings" aria-label="Settings"
+              style={{ width: 36, height: 36, borderRadius: 999, border: '1px solid var(--color-line-strong)', background: 'var(--color-surface)', color: 'var(--color-ink)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, textDecoration: 'none', boxShadow: 'var(--shadow-sm)' }}>
+              ⚙
+            </Link>
             <div style={{ textAlign: 'right', lineHeight: 1.2 }}>
               <div className="data" style={{ fontSize: 12, color: 'var(--color-ink)' }}>{user.email}</div>
               <div className="eyebrow" style={{ fontSize: 9 }}>{role}</div>
