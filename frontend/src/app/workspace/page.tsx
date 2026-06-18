@@ -269,14 +269,18 @@ export default function Workspace() {
 
   // Download the full transactions/alerts history as CSV from the backend.
   const exportCsv = async () => {
-    const token = await getToken(user?.role || 'viewer');
-    const res = await fetch(apiUrl('/v1/alerts/export'), { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) { showToast('Export failed', 'alert'); return; }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'vaultstream-transactions.csv'; a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const token = await getToken(user?.role || 'viewer');
+      const res = await fetch(apiUrl('/v1/alerts/export'), { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { showToast('Export failed', 'alert'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'vaultstream-transactions.csv'; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      showToast('Export failed — backend offline?', 'alert');
+    }
   };
 
   const inject = async (opts: {
@@ -372,24 +376,31 @@ export default function Workspace() {
     }
 
     // replay from DB
+    let replayTimer: ReturnType<typeof setInterval> | undefined;
     (async () => {
-      const token = await getToken(user?.role || 'viewer');
-      const res = await fetch(apiUrl('/v1/alerts'), { headers: { Authorization: `Bearer ${token}` } });
-      const stored: AlertType[] = res.ok ? await res.json() : [];
-      if (cancelled || stored.length === 0) return;
-      const ordered = [...stored].reverse(); // oldest first → stream forward
-      setAlerts([]);
-      let i = 0;
-      const t = setInterval(() => {
-        if (cancelled) return;
-        const a = ordered[i % ordered.length];
-        setAlerts((prev) => [{ ...a, timestamp: Date.now() }, ...prev.filter((p) => p.id !== a.id)].slice(0, 50));
-        i += 1;
-        if (i >= ordered.length) clearInterval(t);
-      }, 1200);
+      try {
+        const token = await getToken(user?.role || 'viewer');
+        const res = await fetch(apiUrl('/v1/alerts'), { headers: { Authorization: `Bearer ${token}` } });
+        const stored: AlertType[] = res.ok ? await res.json() : [];
+        if (cancelled || stored.length === 0) return;
+        const ordered = [...stored].reverse(); // oldest first → stream forward
+        setAlerts([]);
+        let i = 0;
+        replayTimer = setInterval(() => {
+          if (cancelled) return;
+          const a = ordered[i % ordered.length];
+          setAlerts((prev) => [{ ...a, timestamp: Date.now() }, ...prev.filter((p) => p.id !== a.id)].slice(0, 50));
+          i += 1;
+          if (i >= ordered.length && replayTimer) clearInterval(replayTimer);
+        }, 1200);
+      } catch (e) {
+        // Backend offline — leave the feed as-is rather than crashing the page.
+        console.warn('Replay stream unavailable (backend offline?):', e);
+      }
     })();
     return () => {
       cancelled = true;
+      if (replayTimer) clearInterval(replayTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streaming, streamSource]);
