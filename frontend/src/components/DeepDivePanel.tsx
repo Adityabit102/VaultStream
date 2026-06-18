@@ -283,6 +283,18 @@ export default function DeepDivePanel({
         </div>
       </div>
 
+      {/* Rules triggered (hybrid detection layer) */}
+      {alert.rules_triggered && alert.rules_triggered.length > 0 && (
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Rules triggered</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {alert.rules_triggered.map((r) => (
+              <span key={r} className="badge badge-warn" style={{ fontSize: 11, textTransform: 'none', letterSpacing: 0 }}>⚑ {r}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Entity relationship graph */}
       <div>
         <div className="eyebrow" style={{ marginBottom: 10 }}>Entity network</div>

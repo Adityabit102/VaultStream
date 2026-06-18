@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
+import { ThemeToggle } from '@/components/ThemeProvider';
 import Logo from './Logo';
 
 export default function SiteNav() {
@@ -69,10 +70,15 @@ export default function SiteNav() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <ThemeToggle />
           {user ? (
             <>
               <Link href="/workspace" className="btn btn-ghost" style={{ padding: '10px 18px', fontSize: 13 }}>
                 Workspace
+              </Link>
+              <Link href="/settings" title="Settings" aria-label="Settings"
+                style={{ width: 40, height: 40, borderRadius: 999, border: '1px solid var(--color-line-strong)', background: 'var(--color-surface)', color: 'var(--color-ink)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, textDecoration: 'none', boxShadow: 'var(--shadow-sm)' }}>
+                ⚙
               </Link>
               <button onClick={() => signOut()} className="btn btn-primary" style={{ padding: '10px 18px', fontSize: 13 }}>
                 Sign out

@@ -28,7 +28,9 @@ export default function CircleExpandButton({
     ink: '#241a33',
     gold: 'var(--grad-gold)',
   };
-  const baseText = tone === 'gold' ? '#5a3d22' : '#241a33';
+  // Base text follows the theme so it stays legible on --color-surface in both
+  // light and dark; hover text is chosen to read against the expanding fill.
+  const baseText = 'var(--color-ink)';
   const hoverText = tone === 'gold' ? '#5a3d22' : '#ffffff';
 
   const inner = (

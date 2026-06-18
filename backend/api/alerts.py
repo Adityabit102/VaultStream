@@ -80,20 +80,56 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-@router.get("/v1/alerts")
-@limiter.limit("30/minute")
-async def get_alerts(request: Request, user: dict = Depends(verify_token)):
-    from .predict import supabase, supabase_url
+@router.get("/v1/alerts/export")
+@limiter.limit("10/minute")
+async def export_alerts(request: Request, user: dict = Depends(verify_token)):
+    """Download all persisted alerts as CSV."""
+    from database import db
+    import csv, io
+    from fastapi.responses import StreamingResponse
+
+    rows = list(db.iter_all_alerts()) if db.DB_ENABLED else list(mock_alerts)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["created_at", "transaction_id", "entity_id", "risk_score", "risk_label", "status", "assignee", "action_taken"])
+    for a in rows:
+        w.writerow([a.get("created_at"), a.get("transaction_id"), a.get("entity_id"),
+                    a.get("risk_score"), a.get("risk_label"), a.get("status"),
+                    a.get("assignee"), a.get("action_taken")])
+    buf.seek(0)
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=vaultstream-transactions.csv"})
+
+
+@router.get("/v1/alerts/{alert_id}")
+@limiter.limit("60/minute")
+async def get_alert(request: Request, alert_id: str, user: dict = Depends(verify_token)):
     from database import db
     if db.DB_ENABLED:
-        rows = db.list_alerts(50)
+        row = db.get_alert(alert_id)
+        if row:
+            return row
+    for a in mock_alerts:
+        if a.get("id") == alert_id:
+            return a
+    raise HTTPException(status_code=404, detail="alert not found")
+
+
+@router.get("/v1/alerts")
+@limiter.limit("30/minute")
+async def get_alerts(request: Request, user: dict = Depends(verify_token), limit: int = 50, offset: int = 0):
+    from .predict import supabase, supabase_url
+    from database import db
+    limit = max(1, min(limit, 200))
+    if db.DB_ENABLED:
+        rows = db.list_alerts(limit, offset)
         if rows is not None:
             return rows
     if not supabase or not supabase_url or "your-project" in supabase_url:
-        return mock_alerts
+        return mock_alerts[offset:offset + limit]
 
     try:
-        res = supabase.table("fraud_alerts").select("*").order("created_at", desc=True).limit(50).execute()
+        res = supabase.table("fraud_alerts").select("*").order("created_at", desc=True).range(offset, offset + limit - 1).execute()
         return res.data
     except Exception as e:
         print(f"Warning: Failed to fetch alerts from Supabase, falling back to in-memory: {e}")

@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
 import WorkspaceHeader from '@/components/site/WorkspaceHeader';
 import AppBackground from '@/components/site/AppBackground';
 import { Badge } from '@/components/ui';
@@ -54,6 +54,10 @@ export default function ModelLabPage() {
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+
+  const toggleCompare = (id: string) =>
+    setCompareIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 3 ? prev : [...prev, id]));
 
   useEffect(() => {
     if (roleLoading) return;
@@ -356,17 +360,36 @@ export default function ModelLabPage() {
               </div>
             )}
 
+            {/* Model comparison */}
+            {compareIds.length >= 2 && (
+              <ComparePanel runs={runs.filter((r) => compareIds.includes(r.run_id))} onClear={() => setCompareIds([])} />
+            )}
+
             {/* Run registry */}
             <div className="lux-card" style={{ padding: 22 }}>
-              <div className="eyebrow" style={{ marginBottom: 14 }}>Run registry · {runs.length}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div className="eyebrow">Run registry · {runs.length}</div>
+                {compareIds.length > 0 && (
+                  <span className="data" style={{ fontSize: 11, color: 'var(--color-ink-faint)' }}>
+                    {compareIds.length}/3 selected to compare{compareIds.length < 2 ? ' · pick one more' : ''}
+                  </span>
+                )}
+              </div>
               {runs.length === 0 ? (
                 <p style={{ color: 'var(--color-ink-faint)', fontSize: 13 }}>No runs yet — train a model to populate the registry.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {runs.map((r) => (
-                    <div key={r.run_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12, background: 'var(--color-surface-2)', border: `1px solid ${r.champion ? 'var(--color-gold)' : 'var(--color-line)'}` }}>
+                  {runs.map((r) => {
+                    const checked = compareIds.includes(r.run_id);
+                    const disabled = !checked && compareIds.length >= 3;
+                    return (
+                    <div key={r.run_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12, background: checked ? 'var(--color-violet-soft)' : 'var(--color-surface-2)', border: `1px solid ${checked ? 'var(--color-violet)' : r.champion ? 'var(--color-gold)' : 'var(--color-line)'}` }}>
+                      <button onClick={() => toggleCompare(r.run_id)} disabled={disabled} title={checked ? 'Remove from comparison' : 'Add to comparison'}
+                        aria-label="Compare" style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: disabled ? 'not-allowed' : 'pointer', border: `1.5px solid ${checked ? 'var(--color-violet)' : 'var(--color-line-strong)'}`, background: checked ? 'var(--color-violet)' : 'var(--color-surface)', color: '#fff', fontSize: 11, lineHeight: 1, display: 'grid', placeItems: 'center', opacity: disabled ? 0.4 : 1 }}>
+                        {checked ? '✓' : ''}
+                      </button>
                       <span style={{ width: 8, height: 8, borderRadius: 999, background: ACCENTS[r.algorithm] || 'var(--color-violet)' }} />
-                      <span style={{ fontWeight: 600, fontSize: 13, width: 150 }}>{r.algorithm_label}</span>
+                      <span style={{ fontWeight: 600, fontSize: 13, width: 140 }}>{r.algorithm_label}</span>
                       <span className="data" style={{ fontSize: 12, color: 'var(--color-ink-soft)' }}>AUC {r.metrics.auc}</span>
                       <span className="data" style={{ fontSize: 12, color: 'var(--color-ink-faint)' }}>F1 {r.metrics.f1}</span>
                       <span className="data" style={{ fontSize: 11, color: 'var(--color-ink-faint)', marginLeft: 'auto' }}>{r.run_id}</span>
@@ -376,7 +399,7 @@ export default function ModelLabPage() {
                         <button onClick={() => promote(r.run_id)} className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 11 }}>Promote</button>
                       )}
                     </div>
-                  ))}
+                  );})}
                 </div>
               )}
             </div>
@@ -456,6 +479,90 @@ function ThresholdTuner({ samples, initial, accent }: { samples: { s: number; y:
         ))}
       </div>
     </div>
+  );
+}
+
+const COMPARE_COLORS = ['var(--color-violet)', 'var(--color-rose)', 'var(--color-sky)'];
+
+function ComparePanel({ runs, onClear }: { runs: RunResult[]; onClear: () => void }) {
+  const metrics: { key: keyof RunResult['metrics']; label: string; lowerBetter?: boolean }[] = [
+    { key: 'auc', label: 'AUC' },
+    { key: 'accuracy', label: 'Accuracy' },
+    { key: 'precision', label: 'Precision' },
+    { key: 'recall', label: 'Recall' },
+    { key: 'f1', label: 'F1' },
+    { key: 'fpr', label: 'FPR', lowerBetter: true },
+  ];
+  // Best value per metric (for highlighting the winner)
+  const best: Record<string, number> = {};
+  for (const m of metrics) {
+    const vals = runs.map((r) => r.metrics[m.key]);
+    best[m.key] = m.lowerBetter ? Math.min(...vals) : Math.max(...vals);
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="lux-card" style={{ padding: 22 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div className="eyebrow">Model comparison · {runs.length} runs</div>
+        <button onClick={onClear} className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 11 }}>Clear</button>
+      </div>
+
+      {/* Overlaid ROC curves */}
+      <div style={{ height: 260, marginBottom: 20 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart margin={{ top: 6, right: 10, bottom: 4, left: -18 }}>
+            <CartesianGrid strokeDasharray="4 4" stroke="var(--color-line)" />
+            <XAxis dataKey="fpr" type="number" domain={[0, 1]} stroke="var(--color-ink-faint)" tick={{ fontSize: 10, fill: 'var(--color-ink-faint)' }} label={{ value: 'FPR', position: 'insideBottom', offset: -2, fontSize: 10, fill: 'var(--color-ink-faint)' }} />
+            <YAxis type="number" domain={[0, 1]} stroke="var(--color-ink-faint)" tick={{ fontSize: 10, fill: 'var(--color-ink-faint)' }} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid var(--color-line)', fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]} stroke="var(--color-line-strong)" strokeDasharray="3 3" />
+            {runs.map((r, i) => (
+              <Line key={r.run_id} data={r.roc_points} dataKey="tpr" name={`${r.algorithm_label} (${r.metrics.auc})`} stroke={COMPARE_COLORS[i]} strokeWidth={2.5} dot={false} type="monotone" />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Side-by-side metric diff */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th className="eyebrow" style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10 }}>Metric</th>
+              {runs.map((r, i) => (
+                <th key={r.run_id} style={{ textAlign: 'right', padding: '8px 10px', fontSize: 12 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--color-ink)' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: COMPARE_COLORS[i] }} />
+                    {r.algorithm_label}
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {metrics.map((m) => (
+              <tr key={m.key} style={{ borderTop: '1px solid var(--color-line)' }}>
+                <td style={{ padding: '9px 10px', color: 'var(--color-ink-soft)' }}>{m.label}{m.lowerBetter ? ' ↓' : ''}</td>
+                {runs.map((r) => {
+                  const v = r.metrics[m.key];
+                  const isBest = v === best[m.key];
+                  return (
+                    <td key={r.run_id} className="data" style={{ textAlign: 'right', padding: '9px 10px', fontWeight: isBest ? 700 : 400, color: isBest ? 'var(--color-safe)' : 'var(--color-ink)' }}>
+                      {v.toFixed(3)}{isBest ? ' ★' : ''}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            <tr style={{ borderTop: '1px solid var(--color-line)' }}>
+              <td style={{ padding: '9px 10px', color: 'var(--color-ink-soft)' }}>Train time</td>
+              {runs.map((r) => <td key={r.run_id} className="data" style={{ textAlign: 'right', padding: '9px 10px', color: 'var(--color-ink-faint)' }}>{r.train_time_s}s</td>)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </motion.div>
   );
 }
 

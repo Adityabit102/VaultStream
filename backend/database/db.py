@@ -92,6 +92,24 @@ if DB_ENABLED:
         author: Mapped[str] = mapped_column(String)
         body: Mapped[str] = mapped_column(String)
 
+    class Rule(Base):
+        __tablename__ = "rules"
+        id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+        created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+        name: Mapped[str] = mapped_column(String)
+        conditions: Mapped[list] = mapped_column(JSON)  # [{field, op, value}] (AND)
+        action: Mapped[str] = mapped_column(String, default="flag")  # flag | escalate
+        enabled: Mapped[bool] = mapped_column(default=True)
+
+    class ApiKey(Base):
+        __tablename__ = "api_keys"
+        id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+        created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+        name: Mapped[str] = mapped_column(String)
+        prefix: Mapped[str] = mapped_column(String)       # first 8 chars, shown in UI
+        key_hash: Mapped[str] = mapped_column(String, index=True)
+        last_used_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+
     _DEMO_USERS = [
         ("00000000-0000-0000-0000-000000000001", "admin@vaultstream.demo", "admin"),
         ("00000000-0000-0000-0000-000000000002", "analyst@vaultstream.demo", "analyst"),
@@ -115,10 +133,27 @@ if DB_ENABLED:
         print(f"Postgres persistence enabled at {DATABASE_URL.split('@')[-1]}")
 
     # ---- Repository helpers ----
-    def list_alerts(limit: int = 50):
+    def list_alerts(limit: int = 50, offset: int = 0):
         with SessionLocal() as s:
-            rows = s.execute(select(FraudAlert).order_by(FraudAlert.created_at.desc()).limit(limit)).scalars().all()
+            rows = s.execute(
+                select(FraudAlert).order_by(FraudAlert.created_at.desc()).offset(offset).limit(limit)
+            ).scalars().all()
             return [r.as_dict() for r in rows]
+
+    def get_alert(alert_id: str):
+        with SessionLocal() as s:
+            row = s.get(FraudAlert, alert_id)
+            return row.as_dict() if row else None
+
+    def count_alerts():
+        from sqlalchemy import func
+        with SessionLocal() as s:
+            return int(s.query(func.count()).select_from(FraudAlert).scalar() or 0)
+
+    def iter_all_alerts():
+        with SessionLocal() as s:
+            for r in s.execute(select(FraudAlert).order_by(FraudAlert.created_at.desc())).scalars():
+                yield r.as_dict()
 
     def insert_alert(transaction_id, entity_id, risk_score, risk_label, feature_json=None) -> str:
         with SessionLocal() as s:
@@ -261,6 +296,67 @@ if DB_ENABLED:
                     .limit(limit).all())
             return [{"entity": e, "flags": int(c), "max_score": round(float(m), 3)} for e, c, m in rows]
 
+    # ---- Rules engine ----
+    def list_rules():
+        with SessionLocal() as s:
+            rows = s.execute(select(Rule).order_by(Rule.created_at.desc())).scalars().all()
+            return [{"id": r.id, "name": r.name, "conditions": r.conditions, "action": r.action,
+                     "enabled": r.enabled, "created_at": r.created_at.isoformat() + "Z"} for r in rows]
+
+    def add_rule(name, conditions, action="flag"):
+        with SessionLocal() as s:
+            r = Rule(name=name, conditions=conditions, action=action, enabled=True)
+            s.add(r); s.commit()
+            return {"id": r.id, "name": r.name, "conditions": r.conditions, "action": r.action, "enabled": r.enabled}
+
+    def set_rule_enabled(rule_id, enabled):
+        with SessionLocal() as s:
+            r = s.get(Rule, rule_id)
+            if not r:
+                return False
+            r.enabled = bool(enabled); s.commit(); return True
+
+    def delete_rule(rule_id):
+        with SessionLocal() as s:
+            r = s.get(Rule, rule_id)
+            if not r:
+                return False
+            s.delete(r); s.commit(); return True
+
+    def enabled_rules():
+        with SessionLocal() as s:
+            rows = s.execute(select(Rule).where(Rule.enabled == True)).scalars().all()  # noqa: E712
+            return [{"id": r.id, "name": r.name, "conditions": r.conditions, "action": r.action} for r in rows]
+
+    # ---- API keys ----
+    def list_keys():
+        with SessionLocal() as s:
+            rows = s.execute(select(ApiKey).order_by(ApiKey.created_at.desc())).scalars().all()
+            return [{"id": k.id, "name": k.name, "prefix": k.prefix,
+                     "created_at": k.created_at.isoformat() + "Z",
+                     "last_used_at": k.last_used_at.isoformat() + "Z" if k.last_used_at else None} for k in rows]
+
+    def add_key(name, prefix, key_hash):
+        with SessionLocal() as s:
+            k = ApiKey(name=name, prefix=prefix, key_hash=key_hash)
+            s.add(k); s.commit()
+            return {"id": k.id, "name": k.name, "prefix": k.prefix}
+
+    def delete_key(key_id):
+        with SessionLocal() as s:
+            k = s.get(ApiKey, key_id)
+            if not k:
+                return False
+            s.delete(k); s.commit(); return True
+
+    def verify_key(key_hash):
+        with SessionLocal() as s:
+            k = s.execute(select(ApiKey).where(ApiKey.key_hash == key_hash)).scalars().first()
+            if not k:
+                return False
+            k.last_used_at = datetime.datetime.utcnow(); s.commit()
+            return True
+
     def feature_values(column_key: str, limit: int = 2000):
         """Return a list of a single live-feature value across recent alerts (for drift)."""
         with SessionLocal() as s:
@@ -320,3 +416,61 @@ else:
 
     def top_entities(*args, **kwargs):
         return None
+
+    def get_alert(*args, **kwargs):
+        return None
+
+    def count_alerts(*args, **kwargs):
+        return 0
+
+    def iter_all_alerts(*args, **kwargs):
+        return iter(())
+
+    # Rules engine (in-memory fallback)
+    _mock_rules: list = []
+
+    def list_rules(*args, **kwargs):
+        return list(_mock_rules)
+
+    def add_rule(name, conditions, action="flag"):
+        import uuid as _uuid
+        r = {"id": _uuid.uuid4().hex, "name": name, "conditions": conditions, "action": action, "enabled": True}
+        _mock_rules.append(r)
+        return r
+
+    def set_rule_enabled(rule_id, enabled):
+        for r in _mock_rules:
+            if r["id"] == rule_id:
+                r["enabled"] = bool(enabled); return True
+        return False
+
+    def delete_rule(rule_id):
+        for i, r in enumerate(_mock_rules):
+            if r["id"] == rule_id:
+                _mock_rules.pop(i); return True
+        return False
+
+    def enabled_rules(*args, **kwargs):
+        return [r for r in _mock_rules if r.get("enabled")]
+
+    # API keys (in-memory fallback)
+    _mock_keys: list = []
+
+    def list_keys(*args, **kwargs):
+        return [{k: v for k, v in d.items() if k != "key_hash"} for d in _mock_keys]
+
+    def add_key(name, prefix, key_hash):
+        import uuid as _uuid
+        rec = {"id": _uuid.uuid4().hex, "name": name, "prefix": prefix, "key_hash": key_hash,
+               "created_at": None, "last_used_at": None}
+        _mock_keys.append(rec)
+        return {"id": rec["id"], "name": name, "prefix": prefix}
+
+    def delete_key(key_id):
+        for i, k in enumerate(_mock_keys):
+            if k["id"] == key_id:
+                _mock_keys.pop(i); return True
+        return False
+
+    def verify_key(key_hash):
+        return any(k["key_hash"] == key_hash for k in _mock_keys)

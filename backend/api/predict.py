@@ -72,6 +72,74 @@ class PredictRequest(BaseModel):
     amount: float
     device_fingerprint: str
 
+_encoder_cache: dict = {}
+
+def _load_encoder(col: str):
+    if col not in _encoder_cache:
+        enc_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ml", "encoders")
+        path = os.path.join(enc_dir, f"{col}_encoder.pkl")
+        _encoder_cache[col] = joblib.load(path) if os.path.exists(path) else None
+    return _encoder_cache[col]
+
+
+def threshold_label(score: float) -> str:
+    if score >= threshold:
+        return "FRAUD"
+    if score >= threshold * 0.5:
+        return "SUSPICIOUS"
+    return "SAFE"
+
+
+def score_transaction(amount: float, entity_id: str = "batch", device_shift: int = 0,
+                      tx_count_5m: int = 1, tx_count_1h: int = 1, tx_count_24h: int = 1,
+                      sum_amount_1h: Optional[float] = None, forced_score: Optional[float] = None):
+    """Reusable stateless scorer (no Redis/broadcast/persist) used by batch
+    scoring and rule evaluation. Returns (score, label, live_features)."""
+    if sum_amount_1h is None:
+        sum_amount_1h = amount
+    live = {
+        "tx_count_5m": tx_count_5m, "tx_count_1h": tx_count_1h, "tx_count_24h": tx_count_24h,
+        "avg_amount_1h": (sum_amount_1h / tx_count_1h if tx_count_1h else 0.0),
+        "unique_merchant_count_1h": 1, "device_shift_flag": device_shift, "amount_zscore": 0.0,
+        "sum_amount_1h": sum_amount_1h, "TransactionAmt": amount,
+    }
+    if forced_score is not None:
+        s = max(0.0, min(1.0, float(forced_score)))
+        return s, threshold_label(s), live
+    if not model:
+        s = 0.85 if device_shift == 1 or amount > 2000 else 0.05
+        return s, threshold_label(s), live
+    from datetime import datetime as _dt
+    now = _dt.now()
+    card1 = int(hashlib.md5(str(entity_id).encode()).hexdigest(), 16) % 100000 + 1
+    full = {
+        **{k: live[k] for k in ("tx_count_5m", "tx_count_1h", "tx_count_24h", "avg_amount_1h",
+                                 "unique_merchant_count_1h", "device_shift_flag", "amount_zscore", "TransactionAmt")},
+        "hour_of_day": now.hour, "is_weekend": 1 if now.weekday() in (5, 6) else 0,
+        "card1": card1, "card2": -999.0, "card3": -999.0, "card5": -999.0, "addr1": -999.0, "addr2": -999.0,
+        "ProductCD": "W", "card4": "visa", "card6": "debit", "DeviceType": "desktop", "DeviceInfo": "windows",
+    }
+    row = {}
+    for col in features_list:
+        enc = _load_encoder(col)
+        if col in full:
+            val = full[col]
+            if enc is not None:
+                vs = str(val)
+                row[col] = int(np.where(enc.classes_ == vs)[0][0]) if vs in enc.classes_ else (
+                    int(np.where(enc.classes_ == "unknown")[0][0]) if "unknown" in enc.classes_ else 0)
+            else:
+                row[col] = val
+        else:
+            row[col] = (int(np.where(enc.classes_ == "unknown")[0][0]) if (enc is not None and "unknown" in enc.classes_) else (0 if enc is not None else -999))
+    try:
+        X = pd.DataFrame([row], columns=features_list)
+        s = float(model.predict_proba(X)[0][1])
+    except Exception:
+        s = 0.85 if device_shift == 1 or amount > 2000 else 0.05
+    return s, threshold_label(s), live
+
+
 def _persist_shap(db_record_id: str, shap_json: dict):
     from database import db as localdb
     if localdb.DB_ENABLED:
@@ -305,7 +373,22 @@ async def core_predict(predict_req: PredictRequest, background_tasks: Background
         risk_label = 'SUSPICIOUS'
     else:
         risk_label = 'SAFE'
-        
+
+    # Hybrid rules engine: flag/escalate alongside the ML score
+    rules_triggered = []
+    try:
+        from .rules import evaluate_rules
+        rules_triggered = evaluate_rules({
+            "amount": amount, "device_shift": device_shift_flag, "risk_score": risk_score,
+            "tx_count_5m": tx_count_5m, "tx_count_1h": tx_count_1h,
+            "tx_count_24h": tx_count_24h, "sum_amount_1h": sum_amount_1h,
+        })
+        if rules_triggered and any(r.get("action") == "escalate" for r in rules_triggered) and risk_label != 'FRAUD':
+            risk_label = 'FRAUD' if risk_label == 'SUSPICIOUS' else 'SUSPICIOUS'
+    except Exception as e:
+        print(f"Rule evaluation failed: {e}")
+    rule_names = [r["name"] for r in rules_triggered]
+
     db_record_id = None
 
     # Tier 1: local Postgres persistence (if DATABASE_URL configured)
@@ -369,6 +452,7 @@ async def core_predict(predict_req: PredictRequest, background_tasks: Background
             "risk_score": risk_score,
             "risk_label": risk_label,
             "feature_vector": ui_features,
+            "rules_triggered": rule_names,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
         }
         mock_alerts.insert(0, alert_msg)
@@ -400,6 +484,7 @@ async def core_predict(predict_req: PredictRequest, background_tasks: Background
         "risk_label": risk_label,
         "confidence": 0.95,
         "feature_vector": ui_features,
+        "rules_triggered": rule_names,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
     }
 
@@ -407,6 +492,29 @@ async def core_predict(predict_req: PredictRequest, background_tasks: Background
 @limiter.limit("100/minute")
 async def predict_fraud(request: Request, predict_req: PredictRequest, background_tasks: BackgroundTasks, user: dict = Depends(verify_token)):
     return await core_predict(predict_req, background_tasks)
+
+class ThresholdReq(BaseModel):
+    threshold: float
+
+
+@router.patch("/v1/model/threshold")
+async def update_threshold(req: ThresholdReq, user: dict = Depends(require_admin)):
+    global threshold, metadata
+    t = max(0.01, min(0.99, float(req.threshold)))
+    threshold = t
+    metadata["threshold"] = t
+    # Persist to metadata file
+    for p in ("models/model_metadata.json", "backend/models/model_metadata.json",
+              os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "model_metadata.json")):
+        if os.path.exists(p):
+            try:
+                with open(p, "w") as f:
+                    json.dump(metadata, f, indent=4)
+                break
+            except Exception as e:
+                print(f"Failed to persist threshold: {e}")
+    return {"status": "ok", "threshold": t}
+
 
 @router.get("/v1/model/health")
 async def model_health(user: dict = Depends(require_admin)):

@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()  # load backend/.env (secrets like GROQ_API_KEY) before anything reads os.environ
 import sentry_sdk
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
@@ -12,6 +14,11 @@ from api.admin import router as admin_router
 from api.model_lab import router as model_lab_router
 from api.cases import router as cases_router
 from api.insights import router as insights_router
+from api.batch import router as batch_router
+from api.rules import router as rules_router
+from api.keys import router as keys_router
+from api.status import router as status_router
+from api.assistant import router as assistant_router
 from observability import router as metrics_router
 from limiter import limiter
 
@@ -65,6 +72,11 @@ app.include_router(admin_router)
 app.include_router(model_lab_router)
 app.include_router(cases_router)
 app.include_router(insights_router)
+app.include_router(batch_router)
+app.include_router(rules_router)
+app.include_router(keys_router)
+app.include_router(status_router)
+app.include_router(assistant_router)
 app.include_router(metrics_router)
 
 # Reflect the live model AUC in metrics on boot

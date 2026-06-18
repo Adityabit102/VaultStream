@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel
 from typing import Optional
 import os
@@ -386,7 +386,18 @@ async def trigger_local_prediction(event: TransactionEvent, background_tasks: Ba
         print(f"Warning: Standalone mock prediction failed: {e}")
 
 @router.post("/v1/ingest")
-async def ingest_event(request: Request, event: TransactionEvent, background_tasks: BackgroundTasks):
+async def ingest_event(request: Request, event: TransactionEvent, background_tasks: BackgroundTasks,
+                       x_api_key: Optional[str] = Header(default=None)):
+    # Optional API-key auth: validate if a key is sent; require it only when
+    # REQUIRE_API_KEY=1 (keeps the demo open by default).
+    require_key = os.environ.get("REQUIRE_API_KEY") == "1"
+    if x_api_key:
+        from api.keys import hash_key
+        from database import db
+        if not db.verify_key(hash_key(x_api_key)):
+            raise HTTPException(status_code=401, detail="Invalid API key")
+    elif require_key:
+        raise HTTPException(status_code=401, detail="API key required (X-API-Key header)")
     client_ip = request.client.host if request.client else "unknown"
     if not await check_rate_limit(client_ip):
         raise HTTPException(

@@ -21,6 +21,7 @@ export type AlertType = {
   shap_json?: Record<string, number | string> | null;
   status?: string | null;
   assignee?: string | null;
+  rules_triggered?: string[];
 };
 
 export default function ThreatTicker({ 

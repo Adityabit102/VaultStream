@@ -3,6 +3,7 @@ import { ReactNode, CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 
 export { Button, ButtonLink } from './Button';
+export { Skeleton, SkeletonRows } from './Skeleton';
 
 /* ---------------- Card ---------------- */
 export function Card({
