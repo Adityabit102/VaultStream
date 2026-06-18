@@ -6,7 +6,10 @@ import { Skeleton } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 
 interface Component { name: string; ok: boolean; detail: string }
-interface Status { healthy: boolean; env: string; components: Component[] }
+interface Status { healthy: boolean; env: string | { region?: string }; components: Component[] }
+
+const envLabel = (env: Status['env']) =>
+  typeof env === 'string' ? env : env?.region ?? 'local';
 
 export default function StatusPage() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -81,7 +84,7 @@ export default function StatusPage() {
             </motion.div>
           ))}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-ink-faint)', marginTop: 8, padding: '0 4px' }}>
-            <span>Environment: <span className="data">{status.env}</span></span>
+            <span>Environment: <span className="data">{envLabel(status.env)}</span></span>
             {updated && <span>Updated {updated.toLocaleTimeString()}</span>}
           </div>
         </div>
