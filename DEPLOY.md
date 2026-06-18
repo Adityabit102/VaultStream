@@ -8,6 +8,7 @@ VaultStream has three deployable pieces:
 | **Backend** (FastAPI) | **Render / Railway / Fly.io** | Dockerfile included; respects `$PORT` |
 | **Redis** (feature store) | **Upstash** | Code supports `UPSTASH_REDIS_REST_*` |
 | **Kafka** (streaming) | Redpanda Cloud / Confluent | Optional — app runs in standalone fallback if unreachable |
+| **VaultAI LLM** | **Groq** (or Anthropic) | Optional — `GROQ_API_KEY`; without it the assistant uses its grounded responder |
 
 The app is designed to **degrade gracefully**: with no Supabase keys it runs in mock-auth
 mode (demo accounts), and with no Kafka/Redis it falls back to in-memory processing — so it
@@ -38,7 +39,8 @@ The backend ships a production `Dockerfile` (non-root, healthcheck on `/health`,
 
 **Render — one-click Blueprint (recommended):** a [`render.yaml`](render.yaml) at the repo root
 provisions the **API + Postgres + Redis** together. Render → New → **Blueprint** → pick the repo.
-Then set the `sync:false` secrets (CORS_ORIGINS, Supabase keys, optional `NOTIFY_WEBHOOK_URL`).
+Then set the `sync:false` secrets (CORS_ORIGINS, Supabase keys, optional `NOTIFY_WEBHOOK_URL`,
+and `GROQ_API_KEY` for VaultAI — see §7).
 
 **Render (manual Docker):**
 1. New → Web Service → Root Directory `backend/`, Runtime **Docker**, health check `/health`.
@@ -50,6 +52,7 @@ Then set the `sync:false` secrets (CORS_ORIGINS, Supabase keys, optional `NOTIFY
    SUPABASE_URL, SUPABASE_JWT_SECRET, SUPABASE_SERVICE_KEY   (optional)
    CORS_ORIGINS = https://<your-vercel-app>.vercel.app
    NOTIFY_WEBHOOK_URL                            (optional — FRAUD alerts)
+   GROQ_API_KEY                                  (optional — enables the VaultAI LLM; see §7)
    ```
 
 **Railway / Fly.io:** same image; both inject `$PORT`, which the Dockerfile honors.
@@ -99,3 +102,21 @@ The in-app **Model Lab** trains on a synthetic benchmark, so it needs no raw dat
 runtime and stays fast on modest instances. The full IEEE-CIS offline trainer
 (`backend/ml/train.py`) requires the Kaggle CSVs in `data/raw/` and is **not** needed for
 deployment — those files are excluded from the image via `.dockerignore`.
+
+## 7. VaultAI assistant (LLM)
+
+The floating **VaultAI** assistant works with **zero configuration** — it falls back to a
+data-grounded responder that answers from live stats, model metrics, and system health. To
+enable full conversational answers, set an LLM key on the **backend** (never the frontend):
+
+- **Groq (recommended, OpenAI-compatible):**
+  ```
+  GROQ_API_KEY = gsk_...                         (from https://console.groq.com/keys)
+  GROQ_MODEL   = llama-3.3-70b-versatile         (optional; default already set)
+  ```
+- **Anthropic (alternative):** `ANTHROPIC_API_KEY` (+ optional `VAULTAI_MODEL`). If both are
+  set, Groq is tried first, then Claude, then the grounded fallback.
+
+The key is a **server-side secret** — set it as a `sync:false` env var in Render (or your host's
+dashboard), exactly like the Supabase/Sentry keys. It is read from the environment (locally via
+`backend/.env`, which is gitignored) and is never bundled into the frontend or committed.
