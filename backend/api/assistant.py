@@ -116,6 +116,37 @@ About the platform:
 Your job: answer questions, surface insights from the LIVE CONTEXT below, explain fraud/ML concepts, and guide users to the right page. Be concise (under 140 words), warm, and concrete. Use the real numbers from the context. When guiding navigation, name the page. Never invent data not in the context."""
 
 
+def _system_prompt(ctx: dict) -> str:
+    return SYSTEM_PROMPT + "\n\nLIVE CONTEXT:\n" + _fmt_context(ctx)
+
+
+def _call_groq(messages: List[Message], ctx: dict) -> Optional[str]:
+    """Groq's OpenAI-compatible chat completions. Primary LLM path."""
+    key = os.environ.get("GROQ_API_KEY")
+    if not key:
+        return None
+    try:
+        import httpx
+        model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        payload = {
+            "model": model,
+            "max_tokens": 600,
+            "temperature": 0.4,
+            "messages": [{"role": "system", "content": _system_prompt(ctx)}]
+            + [{"role": m.role, "content": m.content} for m in messages if m.role in ("user", "assistant")],
+        }
+        r = httpx.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json=payload, timeout=30,
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"VaultAI Groq path failed, falling back: {e}")
+        return None
+
+
 def _call_claude(messages: List[Message], ctx: dict) -> Optional[str]:
     key = os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -124,7 +155,7 @@ def _call_claude(messages: List[Message], ctx: dict) -> Optional[str]:
         import anthropic
         client = anthropic.Anthropic(api_key=key)
         model = os.environ.get("VAULTAI_MODEL", "claude-haiku-4-5-20251001")
-        sys = SYSTEM_PROMPT + "\n\nLIVE CONTEXT:\n" + _fmt_context(ctx)
+        sys = _system_prompt(ctx)
         resp = client.messages.create(
             model=model,
             max_tokens=600,
@@ -227,14 +258,16 @@ async def assistant_chat(req: ChatReq, user: dict = Depends(verify_token)):
         pass
     last_user = next((m.content for m in reversed(req.messages) if m.role == "user"), "")
 
-    claude_reply = _call_claude(req.messages, ctx)
-    if claude_reply:
-        # Attach navigation suggestions inferred from the question for one-tap routing.
-        sug: List[Suggestion] = []
-        t = last_user.lower()
-        target = next((href for kw, href in PAGES.items() if kw in t), None)
-        if target:
-            sug = [Suggestion(label=f"Go to {target.strip('/') or 'home'}", href=target)]
-        return ChatResp(reply=claude_reply, suggestions=sug, source="claude")
+    # LLM path: Groq first, then Claude; both get the same live context. Falls
+    # back to the grounded responder when neither key is configured / reachable.
+    for source, fn in (("groq", _call_groq), ("claude", _call_claude)):
+        reply = fn(req.messages, ctx)
+        if reply:
+            # Attach navigation suggestions inferred from the question for one-tap routing.
+            sug: List[Suggestion] = []
+            target = next((href for kw, href in PAGES.items() if kw in last_user.lower()), None)
+            if target:
+                sug = [Suggestion(label=f"Go to {target.strip('/') or 'home'}", href=target)]
+            return ChatResp(reply=reply, suggestions=sug, source=source)
 
     return _grounded_reply(last_user, ctx)

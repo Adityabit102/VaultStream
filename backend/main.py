@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()  # load backend/.env (secrets like GROQ_API_KEY) before anything reads os.environ
 import sentry_sdk
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
