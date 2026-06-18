@@ -5,8 +5,9 @@ VaultStream has three deployable pieces:
 | Piece | Recommended host | Notes |
 |---|---|---|
 | **Frontend** (Next.js) | **Vercel** | Zero-config; set `NEXT_PUBLIC_*` env vars |
-| **Backend** (FastAPI) | **Render / Railway / Fly.io** | Dockerfile included; respects `$PORT` |
-| **Redis** (feature store) | **Upstash** | Code supports `UPSTASH_REDIS_REST_*` |
+| **Backend** (FastAPI) | **Render** | Dockerfile included; respects `$PORT` |
+| **Postgres** (persistence) | **Neon** | Serverless, free tier; set `DATABASE_URL` |
+| **Redis** (feature store) | **Render Key Value** / Upstash | Code supports `LOCAL_REDIS_URL` / `UPSTASH_REDIS_REST_*` |
 | **Kafka** (streaming) | Redpanda Cloud / Confluent | Optional — app runs in standalone fallback if unreachable |
 | **VaultAI LLM** | **Groq** (or Anthropic) | Optional — `GROQ_API_KEY`; without it the assistant uses its grounded responder |
 
@@ -38,9 +39,10 @@ deploys and demos even with zero managed services.
 The backend ships a production `Dockerfile` (non-root, healthcheck on `/health`, honors `$PORT`).
 
 **Render — one-click Blueprint (recommended):** a [`render.yaml`](render.yaml) at the repo root
-provisions the **API + Postgres + Redis** together. Render → New → **Blueprint** → pick the repo.
-Then set the `sync:false` secrets (CORS_ORIGINS, Supabase keys, optional `NOTIFY_WEBHOOK_URL`,
-and `GROQ_API_KEY` for VaultAI — see §7).
+provisions the **API + Redis** (Render Key Value). Postgres is hosted separately on **Neon**
+(see §3). Render → New → **Blueprint** → pick the repo, then set the `sync:false` secrets:
+`DATABASE_URL` (your Neon URL), `CORS_ORIGINS`, `GROQ_API_KEY` (VaultAI, §7), and optionally
+the Supabase keys / `SENTRY_DSN` / `NOTIFY_WEBHOOK_URL`.
 
 **Render (manual Docker):**
 1. New → Web Service → Root Directory `backend/`, Runtime **Docker**, health check `/health`.
@@ -59,10 +61,15 @@ and `GROQ_API_KEY` for VaultAI — see §7).
 
 ## 3. Managed services
 
-- **Database (Postgres):** set `DATABASE_URL` → the app persists alerts, users/roles, case
-  notes and the audit trail (3-tier: unset = mock, set = Postgres, Supabase if configured).
-  `postgres://` URLs are normalized automatically. Seed demo data with `backend/scripts/seed_db.py`.
-- **Redis:** Upstash (`UPSTASH_REDIS_REST_*`) or any `LOCAL_REDIS_URL` (Render Key Value / Railway).
+- **Database (Postgres → Neon):** create a project at [neon.tech](https://neon.tech), copy the
+  connection string (`postgresql://USER:PASS@ep-xxx.REGION.aws.neon.tech/vaultstream?sslmode=require`),
+  and set it as `DATABASE_URL` on the backend. The app normalizes the URL to `psycopg2` and uses
+  `pool_pre_ping` so it reconnects cleanly when Neon wakes from autosuspend — no code changes needed.
+  Persists alerts, users/roles, case notes and the audit trail (3-tier: unset = mock, set = Postgres,
+  Supabase if configured). Seed demo data once with
+  `DATABASE_URL=<neon-url> python backend/scripts/seed_db.py --reset`.
+- **Redis:** Render Key Value (auto-wired by `render.yaml` as `LOCAL_REDIS_URL`), or Upstash
+  (`UPSTASH_REDIS_REST_*`).
 - **Kafka/Redpanda:** optional. Set `REDPANDA_BROKER`; if unreachable the backend uses the
   standalone in-memory path (predictions still work).
 - **Supabase:** optional managed auth — run the SQL in [`backend/database/`](backend/database/)
