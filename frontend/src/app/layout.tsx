@@ -7,6 +7,7 @@ import { ThemeProvider, themeNoFlashScript } from "@/components/ThemeProvider";
 import { NotificationProvider } from "@/components/NotificationProvider";
 import CommandPalette from "@/components/site/CommandPalette";
 import CardTilt from "@/components/site/CardTilt";
+import VaultAssistant from "@/components/VaultAssistant";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -70,6 +71,7 @@ export default function RootLayout({
                 <CommandPalette />
                 <CardTilt />
                 {children}
+                <VaultAssistant />
               </NotificationProvider>
             </RoleProvider>
           </AuthProvider>

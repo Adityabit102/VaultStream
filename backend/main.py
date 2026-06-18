@@ -16,6 +16,7 @@ from api.batch import router as batch_router
 from api.rules import router as rules_router
 from api.keys import router as keys_router
 from api.status import router as status_router
+from api.assistant import router as assistant_router
 from observability import router as metrics_router
 from limiter import limiter
 
@@ -73,6 +74,7 @@ app.include_router(batch_router)
 app.include_router(rules_router)
 app.include_router(keys_router)
 app.include_router(status_router)
+app.include_router(assistant_router)
 app.include_router(metrics_router)
 
 # Reflect the live model AUC in metrics on boot

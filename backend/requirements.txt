@@ -55,3 +55,5 @@ pytest==8.3.4
 shap==0.46.0
 prometheus-client==0.21.1
 python-multipart==0.0.20
+# Optional: enables the Claude-backed VaultAI path. Works without it (grounded responder).
+anthropic==0.40.0
