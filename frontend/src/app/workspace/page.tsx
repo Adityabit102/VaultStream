@@ -106,7 +106,8 @@ export default function Workspace() {
           setOffset(PAGE);
         }
       } catch (err) {
-        console.error('Failed to fetch initial alerts', err);
+        // Expected when the backend is starting up / offline; the WS will keep retrying.
+        console.warn('Initial alerts unavailable (backend offline?):', err);
       } finally {
         if (active) setLoadingInitial(false);
       }
@@ -160,7 +161,7 @@ export default function Workspace() {
           setModelHash(data.model_hash);
         }
       } catch (e) {
-        console.error('Failed to fetch model health:', e);
+        console.warn('Model health unavailable (backend offline?):', e);
       }
     };
     fetchModelHealth();
@@ -262,7 +263,7 @@ export default function Workspace() {
         setHasMore(data.length === PAGE);
         setOffset((o) => o + PAGE);
       }
-    } catch (e) { console.error('Load more failed', e); }
+    } catch (e) { console.warn('Load more failed (backend offline?):', e); }
     setLoadingMore(false);
   };
 
