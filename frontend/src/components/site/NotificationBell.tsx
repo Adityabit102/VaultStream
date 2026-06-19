@@ -28,10 +28,10 @@ export default function NotificationBell() {
   }, []);
 
   const toggle = () => {
-    setOpen((o) => {
-      if (!o && unread) markAllRead();
-      return !o;
-    });
+    const next = !open;
+    setOpen(next);
+    // mark read in the event handler — never inside a setState updater (runs during render)
+    if (next && unread) markAllRead();
   };
 
   return (
