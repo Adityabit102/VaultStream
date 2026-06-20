@@ -12,14 +12,6 @@ export default function SiteFooter() {
       ],
     },
     {
-      title: 'Company',
-      links: [
-        { label: 'About', href: '#' },
-        { label: 'Security', href: '#' },
-        { label: 'Careers', href: '#' },
-      ],
-    },
-    {
       title: 'Resources',
       links: [
         { label: 'Documentation', href: '#' },
@@ -37,7 +29,7 @@ export default function SiteFooter() {
           paddingTop: 72,
           paddingBottom: 48,
           display: 'grid',
-          gridTemplateColumns: '1.4fr 1fr 1fr 1fr',
+          gridTemplateColumns: '1.4fr 1fr 1fr',
           gap: 40,
         }}
       >
@@ -86,7 +78,7 @@ export default function SiteFooter() {
         }}
       >
         <span style={{ color: 'var(--color-ink-faint)', fontSize: 13 }}>
-          © {new Date().getFullYear()} VaultStream. Crafted for real-time decisioning.
+          © {new Date().getFullYear()} VaultStream. Crafted as a Personal Project.
         </span>
         <span className="data" style={{ color: 'var(--color-ink-faint)', fontSize: 12 }}>
           XGBoost · IEEE-CIS · Kafka · Redis · FastAPI · Next.js

@@ -49,6 +49,76 @@ def evaluate_rules(context: dict) -> list:
     return triggered
 
 
+class BacktestReq(BaseModel):
+    conditions: List[Condition]
+
+
+@router.post("/v1/rules/backtest")
+async def backtest_rule(req: BacktestReq, user: dict = Depends(verify_token)):
+    """Replay a draft rule against historical alerts: how many it would have
+    flagged, and how many of those were confirmed fraud vs false positive."""
+    for c in req.conditions:
+        if c.field not in FIELDS:
+            raise HTTPException(400, detail=f"field must be one of {FIELDS}")
+        if c.op not in OPS:
+            raise HTTPException(400, detail=f"op must be one of {sorted(OPS)}")
+    conds = [c.model_dump() for c in req.conditions]
+    if not conds:
+        raise HTTPException(400, detail="at least one condition required")
+
+    matched = matched_fraud = matched_safe = confirmed = false_pos = 0
+    total = 0
+    samples = []
+    feedback_map = {}
+    if db.DB_ENABLED:
+        try:
+            for fb in db.all_feedback_labels():
+                feedback_map[fb["alert_id"]] = fb["label"]
+        except Exception:
+            feedback_map = {}
+    alerts = db.iter_all_alerts() if db.DB_ENABLED else []
+    for a in alerts:
+        total += 1
+        fj = a.get("feature_json") or {}
+        ctx = {
+            "amount": float(fj.get("sum_amount_1h", 0) or 0),
+            "sum_amount_1h": float(fj.get("sum_amount_1h", 0) or 0),
+            "tx_count_5m": float(fj.get("tx_count_5m", 0) or 0),
+            "tx_count_1h": float(fj.get("tx_count_1h", 0) or 0),
+            "tx_count_24h": float(fj.get("tx_count_24h", 0) or 0),
+            "device_shift": float(fj.get("device_shift", 0) or 0),
+            "risk_score": float(a.get("risk_score", 0) or 0),
+        }
+        if all(_cmp(ctx.get(c["field"], 0), c["op"], float(c["value"])) for c in conds):
+            matched += 1
+            if a.get("risk_label") == "FRAUD":
+                matched_fraud += 1
+            elif a.get("risk_label") == "SAFE":
+                matched_safe += 1
+            fbl = feedback_map.get(a.get("id"))
+            if fbl == "confirmed_fraud":
+                confirmed += 1
+            elif fbl == "false_positive":
+                false_pos += 1
+            if len(samples) < 8:
+                samples.append({"transaction_id": a.get("transaction_id"),
+                                "entity_id": a.get("entity_id"),
+                                "risk_label": a.get("risk_label"),
+                                "risk_score": round(float(a.get("risk_score", 0) or 0), 3)})
+    labelled = confirmed + false_pos
+    return {
+        "total_scanned": total,
+        "matched": matched,
+        "match_rate": round(matched / total * 100, 2) if total else 0,
+        "matched_fraud": matched_fraud,
+        "matched_safe": matched_safe,
+        "confirmed_fraud": confirmed,
+        "false_positive": false_pos,
+        "precision_on_labelled": round(confirmed / labelled, 3) if labelled else None,
+        "samples": samples,
+    }
+
+
 @router.get("/v1/rules")
 async def get_rules(user: dict = Depends(verify_token)):
     return {"rules": db.list_rules() or []}

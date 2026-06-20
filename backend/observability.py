@@ -34,11 +34,30 @@ def observe_score(latency_s: float, label: str):
         pass
 
 
+def _channels():
+    """Configured notification endpoints (comma-separated NOTIFY_WEBHOOK_URL).
+    Payload is shaped per channel: Slack/generic use `text`, Discord uses
+    `content` — so one var fans out to multiple destinations."""
+    raw = os.environ.get("NOTIFY_WEBHOOK_URL", "").strip()
+    return [u.strip() for u in raw.split(",") if u.strip() and "your-" not in u]
+
+
+def _post(url: str, text: str):
+    is_discord = "discord.com" in url or "discordapp.com" in url
+    body = {"content": text} if is_discord else {"text": text}
+    payload = json.dumps(body).encode("utf-8")
+    try:
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=4)
+    except Exception as e:
+        print(f"[NOTIFY] webhook failed ({url[:40]}…): {e}")
+
+
 def notify_fraud(alert: dict):
-    """Fire a Slack/Discord/webhook notification on a FRAUD verdict if a webhook
-    URL is configured (NOTIFY_WEBHOOK_URL). No-op otherwise."""
-    url = os.environ.get("NOTIFY_WEBHOOK_URL", "").strip()
-    if not url or "your-" in url:
+    """Fan out a FRAUD notification to every configured channel (Slack / Discord /
+    generic webhook). No-op when none are configured."""
+    urls = _channels()
+    if not urls:
         print(f"[NOTIFY] FRAUD {alert.get('transaction_id')} score={alert.get('risk_score')} (no webhook configured)")
         return
     score = alert.get("risk_score", 0)
@@ -47,9 +66,20 @@ def notify_fraud(alert: dict):
         f"> Transaction `{alert.get('transaction_id')}` · entity `{alert.get('entity_id')}`\n"
         f"> Risk score *{round(float(score) * 100, 1)}%* at {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}"
     )
-    payload = json.dumps({"text": text}).encode("utf-8")
-    try:
-        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=4)
-    except Exception as e:
-        print(f"[NOTIFY] webhook failed: {e}")
+    for url in urls:
+        _post(url, text)
+
+
+def notify_spike(monitor: dict):
+    """Alert on a fraud-rate spike detected by outcome monitoring."""
+    urls = _channels()
+    text = (
+        f":chart_with_upwards_trend: *VaultStream — fraud-rate spike*\n"
+        f"> Last hour *{monitor.get('recent_rate')}%* vs 24h baseline *{monitor.get('baseline_rate')}%* "
+        f"({monitor.get('ratio')}×)"
+    )
+    if not urls:
+        print(f"[NOTIFY] SPIKE {text} (no webhook configured)")
+        return
+    for url in urls:
+        _post(url, text)

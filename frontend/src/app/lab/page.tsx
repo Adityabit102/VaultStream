@@ -51,6 +51,8 @@ export default function ModelLabPage() {
   const [result, setResult] = useState<RunResult | null>(null);
   const [runs, setRuns] = useState<RunResult[]>([]);
   const [drift, setDrift] = useState<{ overall_psi: number; overall_status: string; features: { feature: string; psi: number; status: string }[] } | null>(null);
+  const [feedback, setFeedback] = useState<{ total: number; confirmed_fraud: number; false_positive: number; labelled_precision: number | null } | null>(null);
+  const [shadow, setShadow] = useState<{ has_challenger: boolean; samples: number; agreement_rate: number | null; disagreement_rate: number | null; challenger_fraud_rate: number | null; live_fraud_rate: number | null; champion: { run_id: string; algorithm_label?: string; auc?: number } | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const [log, setLog] = useState<string[]>([]);
@@ -82,6 +84,10 @@ export default function ModelLabPage() {
       loadRuns();
       const dres = await fetch(apiUrl('/v1/analytics/drift'), { headers: { Authorization: `Bearer ${token}` } });
       if (dres.ok) setDrift(await dres.json());
+      const fres = await fetch(apiUrl('/v1/feedback/stats'), { headers: { Authorization: `Bearer ${token}` } });
+      if (fres.ok) setFeedback(await fres.json());
+      const sres = await fetch(apiUrl('/v1/lab/shadow'), { headers: { Authorization: `Bearer ${token}` } });
+      if (sres.ok) setShadow(await sres.json());
     })();
   }, [isAdmin, loadRuns]);
 
@@ -356,6 +362,88 @@ export default function ModelLabPage() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Champion / challenger shadow scoring */}
+            {shadow && (
+              <div className="lux-card" style={{ padding: 22 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div className="eyebrow">Champion / challenger · shadow</div>
+                  {shadow.champion ? (
+                    <span className="badge badge-neutral" style={{ fontSize: 9 }}>challenger: {shadow.champion.algorithm_label}</span>
+                  ) : (
+                    <span className="badge badge-neutral" style={{ fontSize: 9 }}>no challenger</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--color-ink-faint)', marginBottom: 16, lineHeight: 1.5 }}>
+                  The live model decides; a promoted Lab model is scored in <b>shadow</b> on every transaction to measure how often it would disagree — before it is ever trusted.
+                  {!shadow.has_challenger && ' Train a model and promote it to begin shadow scoring.'}
+                </p>
+                {shadow.has_challenger && shadow.samples > 0 ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                      {([
+                        ['Shadowed', shadow.samples.toLocaleString(), 'var(--color-ink)'],
+                        ['Agreement', shadow.agreement_rate != null ? `${(shadow.agreement_rate * 100).toFixed(1)}%` : '—', 'var(--color-safe)'],
+                        ['Challenger fraud', shadow.challenger_fraud_rate != null ? `${(shadow.challenger_fraud_rate * 100).toFixed(1)}%` : '—', 'var(--color-violet)'],
+                        ['Live fraud', shadow.live_fraud_rate != null ? `${(shadow.live_fraud_rate * 100).toFixed(1)}%` : '—', 'var(--color-alert)'],
+                      ] as [string, string, string][]).map(([l, v, c]) => (
+                        <div key={l} style={{ textAlign: 'center', padding: '14px 8px', borderRadius: 14, background: 'var(--color-surface-2)', border: '1px solid var(--color-line)' }}>
+                          <div className="data" style={{ fontSize: 22, fontWeight: 600, color: c }}>{v}</div>
+                          <div className="eyebrow" style={{ fontSize: 8.5, marginTop: 4 }}>{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ height: 8, borderRadius: 999, overflow: 'hidden', display: 'flex', background: 'var(--color-canvas-2)' }}>
+                        <div style={{ width: `${(shadow.agreement_rate ?? 0) * 100}%`, background: 'var(--color-safe)' }} />
+                        <div style={{ width: `${(shadow.disagreement_rate ?? 0) * 100}%`, background: 'var(--color-alert)' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--color-ink-faint)' }}>
+                        <span>agree</span><span>disagree {shadow.disagreement_rate != null ? `${(shadow.disagreement_rate * 100).toFixed(1)}%` : ''}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : shadow.has_challenger ? (
+                  <p style={{ fontSize: 13, color: 'var(--color-ink-faint)' }}>
+                    Challenger ready — score some transactions in the workspace to populate shadow stats.
+                  </p>
+                ) : shadow.champion ? (
+                  <div style={{ fontSize: 13, color: '#9a6320', background: 'var(--color-warn-soft)', borderRadius: 12, padding: '12px 14px', lineHeight: 1.5 }}>
+                    The promoted run ({shadow.champion.algorithm_label}) was trained before shadow scoring existed, so it has no saved model.
+                    <b> Train a new model and promote it</b> to enable shadow scoring.
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 13, color: 'var(--color-ink-faint)' }}>Awaiting a promoted challenger.</p>
+                )}
+              </div>
+            )}
+
+            {/* Analyst feedback signal — closes the supervised loop */}
+            {feedback && (
+              <div className="lux-card" style={{ padding: 22 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div className="eyebrow">Analyst feedback · retraining signal</div>
+                  <span className="badge badge-neutral">{feedback.total} labelled</span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--color-ink-faint)', marginBottom: 16, lineHeight: 1.5 }}>
+                  Dispositions analysts record on alerts (confirmed fraud / false positive) become the supervised labels for the next training run.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  <div style={{ textAlign: 'center', padding: '14px 8px', borderRadius: 14, background: 'var(--color-surface-2)', border: '1px solid var(--color-line)' }}>
+                    <div className="data" style={{ fontSize: 24, fontWeight: 600, color: 'var(--color-alert)' }}>{feedback.confirmed_fraud}</div>
+                    <div className="eyebrow" style={{ fontSize: 9, marginTop: 4 }}>Confirmed fraud</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '14px 8px', borderRadius: 14, background: 'var(--color-surface-2)', border: '1px solid var(--color-line)' }}>
+                    <div className="data" style={{ fontSize: 24, fontWeight: 600, color: 'var(--color-safe)' }}>{feedback.false_positive}</div>
+                    <div className="eyebrow" style={{ fontSize: 9, marginTop: 4 }}>False positive</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '14px 8px', borderRadius: 14, background: 'var(--color-surface-2)', border: '1px solid var(--color-line)' }}>
+                    <div className="data" style={{ fontSize: 24, fontWeight: 600, color: 'var(--color-violet)' }}>{feedback.labelled_precision != null ? `${(feedback.labelled_precision * 100).toFixed(0)}%` : '—'}</div>
+                    <div className="eyebrow" style={{ fontSize: 9, marginTop: 4 }}>Labelled precision</div>
+                  </div>
                 </div>
               </div>
             )}

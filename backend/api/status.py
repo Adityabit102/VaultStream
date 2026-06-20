@@ -61,6 +61,46 @@ async def system_status():
     except Exception:
         components.append({"name": "Postgres", "ok": False, "detail": "error"})
 
+    # Live platform stats
+    stats = {}
+    try:
+        from database import db
+        if db.DB_ENABLED:
+            stats["alerts"] = db.count_alerts()
+            stats["db_dialect"] = "sqlite" if getattr(db, "_is_sqlite", False) else "postgres"
+            try:
+                stats["watchlist"] = len(db.list_watchlist())
+            except Exception:
+                pass
+            try:
+                stats["feedback"] = db.feedback_stats().get("total", 0)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Model version + champion challenger
+    model_info = {}
+    try:
+        from api.predict import metadata as _meta, threshold as _thr
+        model_info = {"val_auc": round(_meta.get("val_auc", 0), 3),
+                      "threshold": _thr,
+                      "features": len(_meta.get("features", []))}
+    except Exception:
+        pass
+    try:
+        import sys
+        ml_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ml")
+        if ml_dir not in sys.path:
+            sys.path.append(ml_dir)
+        import trainer
+        sh = trainer.shadow_stats()
+        model_info["shadow"] = {"has_challenger": sh.get("has_challenger"),
+                                "samples": sh.get("samples"),
+                                "agreement_rate": sh.get("agreement_rate")}
+    except Exception:
+        pass
+
     healthy = all(c["ok"] for c in components)
-    return {"healthy": healthy, "components": components,
+    return {"healthy": healthy, "components": components, "stats": stats, "model": model_info,
             "env": {"region": os.environ.get("RENDER_REGION", "local")}}

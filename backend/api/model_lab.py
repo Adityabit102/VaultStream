@@ -52,6 +52,13 @@ async def get_runs(user: dict = Depends(require_admin)):
     return {"runs": trainer.list_runs()}
 
 
+@router.get("/v1/lab/shadow")
+async def get_shadow(user: dict = Depends(require_admin)):
+    """Champion/challenger shadow-scoring stats — how often the promoted Lab
+    model would disagree with the live verdict."""
+    return trainer.shadow_stats()
+
+
 @router.post("/v1/lab/promote/{run_id}")
 async def promote_run(run_id: str, user: dict = Depends(require_admin)):
     try:

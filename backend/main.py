@@ -19,6 +19,12 @@ from api.rules import router as rules_router
 from api.keys import router as keys_router
 from api.status import router as status_router
 from api.assistant import router as assistant_router
+from api.watchlist import router as watchlist_router
+from api.feedback import router as feedback_router
+from api.network import router as network_router
+from api.reports import router as reports_router
+from api.simulator import router as simulator_router
+from api.entities import router as entities_router
 from observability import router as metrics_router
 from limiter import limiter
 
@@ -42,13 +48,13 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Initialize local Postgres persistence if DATABASE_URL is configured (else mock mode)
-from database.db import init_db, DB_ENABLED
-if DB_ENABLED:
-    try:
-        init_db()
-    except Exception as e:
-        print(f"Warning: DB init failed, continuing in fallback mode: {e}")
+# Initialize persistence (SQLite by default; Postgres when DATABASE_URL is set)
+from database.db import init_db, seed_if_empty
+try:
+    init_db()
+    seed_if_empty()
+except Exception as e:
+    print(f"Warning: DB init/seed failed: {e}")
 
 # Mount SlowAPI Limiter state & handlers
 app.state.limiter = limiter
@@ -77,6 +83,12 @@ app.include_router(rules_router)
 app.include_router(keys_router)
 app.include_router(status_router)
 app.include_router(assistant_router)
+app.include_router(watchlist_router)
+app.include_router(feedback_router)
+app.include_router(network_router)
+app.include_router(reports_router)
+app.include_router(simulator_router)
+app.include_router(entities_router)
 app.include_router(metrics_router)
 
 # Reflect the live model AUC in metrics on boot

@@ -5,7 +5,9 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { RoleProvider } from "@/components/RoleProvider";
 import { ThemeProvider, themeNoFlashScript } from "@/components/ThemeProvider";
 import { NotificationProvider } from "@/components/NotificationProvider";
+import { ToastProvider } from "@/components/ToastProvider";
 import CommandPalette from "@/components/site/CommandPalette";
+import ShortcutsHelp from "@/components/site/ShortcutsHelp";
 import CardTilt from "@/components/site/CardTilt";
 import VaultAssistant from "@/components/VaultAssistant";
 
@@ -68,10 +70,13 @@ export default function RootLayout({
           <AuthProvider>
             <RoleProvider>
               <NotificationProvider>
-                <CommandPalette />
-                <CardTilt />
-                {children}
-                <VaultAssistant />
+                <ToastProvider>
+                  <CommandPalette />
+                  <ShortcutsHelp />
+                  <CardTilt />
+                  {children}
+                  <VaultAssistant />
+                </ToastProvider>
               </NotificationProvider>
             </RoleProvider>
           </AuthProvider>

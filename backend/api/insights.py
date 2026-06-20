@@ -83,6 +83,49 @@ async def top_entities(limit: int = 8, user: dict = Depends(verify_token)):
     return {"entities": []}
 
 
+@router.get("/v1/analytics/impact")
+async def impact(days: int = 30, user: dict = Depends(verify_token)):
+    """Money framing — value caught, open exposure, and estimated FP cost."""
+    if db.DB_ENABLED:
+        return db.impact_summary(days)
+    return {"value_caught": 0, "exposure_open": 0, "fp_review_cost": 0,
+            "net_protected": 0, "fraud_count": 0, "suspicious_count": 0, "days": days}
+
+
+@router.get("/v1/analytics/geo")
+async def geo(days: int = 30, user: dict = Depends(verify_token)):
+    """Transaction origins by country (pseudo-geo derived from the entity id —
+    the IEEE-CIS benchmark ships no geolocation)."""
+    if db.DB_ENABLED:
+        return {"countries": db.geo_breakdown(days)}
+    return {"countries": []}
+
+
+@router.get("/v1/analytics/monitor")
+async def monitor(user: dict = Depends(verify_token)):
+    """Outcome monitoring — compares the last hour's fraud rate against the
+    trailing 24h baseline and flags a spike."""
+    if not db.DB_ENABLED:
+        return {"status": "insufficient", "recent_rate": 0, "baseline_rate": 0, "ratio": 0}
+    r_total, r_fraud, r_rate = db.fraud_rate_window(1)
+    b_total, b_fraud, b_rate = db.fraud_rate_window(24)
+    if r_total < 5 or b_total < 20:
+        status = "insufficient"
+    else:
+        ratio = (r_rate / b_rate) if b_rate > 0 else 0
+        status = "spike" if ratio >= 1.75 and r_rate > 0.1 else \
+                 "elevated" if ratio >= 1.25 else "normal"
+    ratio = round((r_rate / b_rate), 2) if b_rate > 0 else 0
+    return {
+        "status": status,
+        "recent_rate": round(r_rate * 100, 2),
+        "baseline_rate": round(b_rate * 100, 2),
+        "ratio": ratio,
+        "recent": {"total": r_total, "fraud": r_fraud},
+        "baseline": {"total": b_total, "fraud": b_fraud},
+    }
+
+
 @router.get("/v1/audit")
 async def audit_feed(limit: int = 100, user: dict = Depends(require_admin)):
     if db.DB_ENABLED:

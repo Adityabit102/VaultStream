@@ -8,6 +8,12 @@ import { apiFetch } from '@/lib/api';
 
 interface Condition { field: string; op: string; value: number }
 interface Rule { id: string; name: string; conditions: Condition[]; action: string; enabled: boolean }
+interface BacktestResult {
+  total_scanned: number; matched: number; match_rate: number; matched_fraud: number;
+  matched_safe: number; confirmed_fraud: number; false_positive: number;
+  precision_on_labelled: number | null;
+  samples: { transaction_id: string; entity_id: string; risk_label: string; risk_score: number }[];
+}
 
 const FIELDS = ['amount', 'tx_count_5m', 'tx_count_1h', 'tx_count_24h', 'sum_amount_1h', 'device_shift', 'risk_score'];
 const OPS = ['>', '>=', '<', '<=', '==', '!='];
@@ -34,6 +40,8 @@ export default function RulesPage() {
   const [conditions, setConditions] = useState<Condition[]>([{ field: 'amount', op: '>', value: 5000 }]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [backtest, setBacktest] = useState<BacktestResult | null>(null);
+  const [backtesting, setBacktesting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -53,7 +61,7 @@ export default function RulesPage() {
 
   const resetForm = () => {
     setName(''); setAction('flag'); setConditions([{ field: 'amount', op: '>', value: 5000 }]);
-    setError(null); setCreating(false);
+    setError(null); setCreating(false); setBacktest(null);
   };
 
   const submit = async () => {
@@ -70,6 +78,20 @@ export default function RulesPage() {
       await load();
     } catch { setError('Network error.'); }
     setSaving(false);
+  };
+
+  const runBacktest = async () => {
+    setBacktesting(true);
+    setBacktest(null);
+    try {
+      const res = await apiFetch('/v1/rules/backtest', {
+        role: 'viewer', method: 'POST',
+        body: JSON.stringify({ conditions }),
+      });
+      if (res.ok) setBacktest(await res.json());
+      else setError((await res.json()).detail || 'Backtest failed.');
+    } catch { setError('Network error.'); }
+    setBacktesting(false);
   };
 
   const toggle = async (r: Rule) => {
@@ -130,9 +152,39 @@ export default function RulesPage() {
               </div>
               <button onClick={addCondition} className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 14px', marginTop: 12 }}>+ Add condition</button>
 
+              {/* Backtest result */}
+              {backtest && (
+                <div style={{ marginTop: 18, padding: 18, borderRadius: 16, background: 'var(--color-surface-2)', border: '1px solid var(--color-line)' }}>
+                  <div className="eyebrow" style={{ marginBottom: 14 }}>Backtest · {backtest.total_scanned.toLocaleString()} historical alerts</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: backtest.samples.length ? 14 : 0 }}>
+                    {([
+                      ['Would flag', backtest.matched.toLocaleString(), 'var(--color-ink)'],
+                      ['Match rate', `${backtest.match_rate}%`, 'var(--color-violet)'],
+                      ['Of those, fraud', backtest.matched_fraud.toLocaleString(), 'var(--color-alert)'],
+                      ['Precision (labelled)', backtest.precision_on_labelled != null ? `${(backtest.precision_on_labelled * 100).toFixed(0)}%` : '—', 'var(--color-safe)'],
+                    ] as [string, string, string][]).map(([l, v, c]) => (
+                      <div key={l} style={{ textAlign: 'center' }}>
+                        <div className="data" style={{ fontSize: 22, fontWeight: 600, color: c }}>{v}</div>
+                        <div className="eyebrow" style={{ fontSize: 8.5, marginTop: 4 }}>{l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {backtest.samples.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {backtest.samples.map((s) => (
+                        <span key={s.transaction_id} className="data" style={{ fontSize: 10.5, padding: '3px 8px', borderRadius: 7, background: 'var(--color-surface)', border: '1px solid var(--color-line)', color: 'var(--color-ink-soft)' }}>
+                          {s.transaction_id} · {(s.risk_score * 100).toFixed(0)}%
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {error && <div style={{ color: 'var(--color-alert)', fontSize: 13, marginTop: 14 }}>{error}</div>}
               <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                 <button className="btn btn-primary" onClick={submit} disabled={saving} style={{ fontSize: 13 }}>{saving ? 'Saving…' : 'Create rule'}</button>
+                <button className="btn btn-ghost" onClick={runBacktest} disabled={backtesting} style={{ fontSize: 13 }}>{backtesting ? 'Testing…' : '↻ Backtest'}</button>
                 <button className="btn btn-ghost" onClick={resetForm} style={{ fontSize: 13 }}>Cancel</button>
               </div>
             </motion.div>

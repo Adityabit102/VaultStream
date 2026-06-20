@@ -389,6 +389,18 @@ async def core_predict(predict_req: PredictRequest, background_tasks: Background
         print(f"Rule evaluation failed: {e}")
     rule_names = [r["name"] for r in rules_triggered]
 
+    # Watchlist / blocklist — an instant DENY that overrides the model score.
+    try:
+        from database import db as _wdb
+        if _wdb.DB_ENABLED:
+            hit = _wdb.match_watchlist(predict_req.entity_id, predict_req.device_fingerprint)
+            if hit:
+                risk_label = "FRAUD"
+                risk_score = max(risk_score, 0.99)
+                rule_names.append(f"Watchlist:{hit['kind']}")
+    except Exception as e:
+        print(f"Watchlist check failed: {e}")
+
     db_record_id = None
 
     # Tier 1: local Postgres persistence (if DATABASE_URL configured)
@@ -470,6 +482,22 @@ async def core_predict(predict_req: PredictRequest, background_tasks: Background
                 background_tasks.add_task(notify_fraud, alert_msg)
             except Exception:
                 pass
+
+    # Champion/challenger shadow scoring — score with the promoted Lab model
+    # (challenger) and record how often it disagrees with the live verdict.
+    try:
+        import sys as _sys
+        _ml_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ml")
+        if _ml_dir not in _sys.path:
+            _sys.path.append(_ml_dir)
+        import trainer as _trainer
+        _trainer.shadow_compare(
+            [tx_count_5m, tx_count_1h, tx_count_24h, avg_amount_1h, amount,
+             unique_merchant_count_1h, device_shift_flag, amount_zscore],
+            risk_label,
+        )
+    except Exception:
+        pass
 
     # Metrics
     try:

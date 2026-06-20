@@ -5,14 +5,30 @@ import { motion } from 'framer-motion';
 const toneFor = (label: string) =>
   label === 'FRAUD' ? 'alert' : label === 'SUSPICIOUS' ? 'warn' : 'safe';
 
-function timeAgo(alert: AlertType): string {
+function ageSeconds(alert: AlertType): number {
   const ms = alert.timestamp ?? (alert.created_at ? Date.parse(alert.created_at) : NaN);
-  if (!ms || isNaN(ms)) return '';
-  const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (!ms || isNaN(ms)) return NaN;
+  return Math.max(0, Math.floor((Date.now() - ms) / 1000));
+}
+
+function timeAgo(alert: AlertType): string {
+  const s = ageSeconds(alert);
+  if (isNaN(s)) return '';
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
+}
+
+/** SLA aging for open, non-safe cases: green < 1h, amber 1–4h, red overdue > 4h. */
+function slaBadge(alert: AlertType): { label: string; color: string } | null {
+  const resolved = alert.action_taken || alert.status === 'resolved' || alert.status === 'dismissed';
+  if (resolved || alert.risk_label === 'SAFE') return null;
+  const s = ageSeconds(alert);
+  if (isNaN(s)) return null;
+  if (s > 4 * 3600) return { label: 'overdue', color: 'var(--color-alert)' };
+  if (s > 3600) return { label: 'aging', color: 'var(--color-warn)' };
+  return { label: 'on time', color: 'var(--color-safe)' };
 }
 
 export default function AlertCard({
@@ -50,7 +66,17 @@ export default function AlertCard({
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span className={`badge badge-${tone}`}>{alert.risk_label}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span className={`badge badge-${tone}`}>{alert.risk_label}</span>
+          {(() => {
+            const sla = slaBadge(alert);
+            return sla ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: sla.color }}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: sla.color }} />{sla.label}
+              </span>
+            ) : null;
+          })()}
+        </span>
         <span className="data" style={{ fontSize: 14, fontWeight: 600, color: accent }}>
           {(alert.risk_score * 100).toFixed(1)}%
         </span>

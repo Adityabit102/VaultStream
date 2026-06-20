@@ -15,7 +15,18 @@ interface Summary {
   series: { date: string; SAFE?: number; SUSPICIOUS?: number; FRAUD?: number; blocked?: number }[];
 }
 
+interface Impact { value_caught: number; exposure_open: number; fp_review_cost: number; net_protected: number; fraud_count: number; suspicious_count: number }
+interface Monitor { status: string; recent_rate: number; baseline_rate: number; ratio: number }
+interface GeoRow { code: string; country: string; total: number; fraud: number; fraud_rate: number }
+
 const COLORS: Record<string, string> = { SAFE: 'var(--color-safe)', SUSPICIOUS: 'var(--color-warn)', FRAUD: 'var(--color-alert)' };
+
+const MONITOR_TONE: Record<string, { bg: string; fg: string; icon: string; text: string }> = {
+  spike: { bg: 'var(--color-alert-soft)', fg: '#b23a54', icon: '🚨', text: 'Fraud-rate spike detected' },
+  elevated: { bg: 'var(--color-warn-soft)', fg: '#9a6320', icon: '⚠️', text: 'Elevated fraud rate' },
+  normal: { bg: 'var(--color-surface-2)', fg: 'var(--color-ink-soft)', icon: '✓', text: 'Fraud rate within normal range' },
+  insufficient: { bg: 'var(--color-surface-2)', fg: 'var(--color-ink-faint)', icon: '·', text: 'Gathering baseline…' },
+};
 
 const panel: React.CSSProperties = {
   background: 'var(--color-surface)', border: '1px solid var(--color-line)', borderRadius: 24, padding: 24, boxShadow: 'var(--shadow-sm)',
@@ -27,14 +38,24 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<Summary | null>(null);
   const [days, setDays] = useState(14);
   const [topEntities, setTopEntities] = useState<{ entity: string; flags: number; max_score: number }[]>([]);
+  const [impact, setImpact] = useState<Impact | null>(null);
+  const [monitor, setMonitor] = useState<Monitor | null>(null);
+  const [geo, setGeo] = useState<GeoRow[]>([]);
 
   useEffect(() => {
     (async () => {
       const token = await getToken(role || 'viewer');
-      const res = await fetch(apiUrl(`/v1/analytics/summary?days=${days}`), { headers: { Authorization: `Bearer ${token}` } });
+      const h = { Authorization: `Bearer ${token}` };
+      const res = await fetch(apiUrl(`/v1/analytics/summary?days=${days}`), { headers: h });
       if (res.ok) setData(await res.json());
-      const te = await fetch(apiUrl('/v1/analytics/top-entities?limit=6'), { headers: { Authorization: `Bearer ${token}` } });
+      const te = await fetch(apiUrl('/v1/analytics/top-entities?limit=6'), { headers: h });
       if (te.ok) setTopEntities((await te.json()).entities || []);
+      const im = await fetch(apiUrl(`/v1/analytics/impact?days=${days}`), { headers: h });
+      if (im.ok) setImpact(await im.json());
+      const mo = await fetch(apiUrl('/v1/analytics/monitor'), { headers: h });
+      if (mo.ok) setMonitor(await mo.json());
+      const ge = await fetch(apiUrl(`/v1/analytics/geo?days=${days}`), { headers: h });
+      if (ge.ok) setGeo((await ge.json()).countries || []);
     })();
   }, [role, days]);
 
@@ -81,6 +102,33 @@ export default function AnalyticsPage() {
 
         {!isAuthenticated && (
           <div style={{ ...panel, marginBottom: 20 }}>Sign in to view analytics.</div>
+        )}
+
+        {/* Outcome-monitoring banner */}
+        {monitor && (() => {
+          const m = MONITOR_TONE[monitor.status] || MONITOR_TONE.normal;
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderRadius: 16, marginBottom: 20, background: m.bg, color: m.fg, border: '1px solid var(--color-line)' }}>
+              <span style={{ fontSize: 20 }}>{m.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{m.text}</div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>
+                  Last hour {monitor.recent_rate}% vs 24h baseline {monitor.baseline_rate}%
+                  {monitor.ratio ? ` · ${monitor.ratio}× baseline` : ''}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Economic impact tiles */}
+        {impact && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }} className="kpi-grid">
+            <div style={panel} title="Sum of 1h spend on confirmed FRAUD alerts."><StatTile value={`$${Math.round(impact.value_caught).toLocaleString()}`} label="Fraud value caught" accent="var(--color-mint)" sub={`${impact.fraud_count} alerts`} /></div>
+            <div style={panel} title="1h spend exposed on still-open SUSPICIOUS alerts."><StatTile value={`$${Math.round(impact.exposure_open).toLocaleString()}`} label="Open exposure" accent="var(--color-warn)" sub={`${impact.suspicious_count} suspicious`} /></div>
+            <div style={panel} title="Estimated analyst review cost of false positives (≈$12/flag)."><StatTile value={`$${Math.round(impact.fp_review_cost).toLocaleString()}`} label="Est. FP review cost" accent="var(--color-ink-soft)" /></div>
+            <div style={panel} title="Value caught minus the cost of false-positive review."><StatTile value={`$${Math.round(impact.net_protected).toLocaleString()}`} label="Net protected" accent="var(--color-violet)" /></div>
+          </div>
         )}
 
         {/* KPI tiles */}
@@ -154,6 +202,30 @@ export default function AnalyticsPage() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+        </div>
+
+        {/* Geographic origins */}
+        <div style={{ ...panel, marginBottom: 20 }}>
+          <div className="eyebrow" style={{ marginBottom: 16 }} title="Transaction origins by country (derived from entity id — IEEE-CIS ships no geo).">Top origin countries · by fraud</div>
+          {geo.length === 0 ? (
+            <p style={{ color: 'var(--color-ink-faint)', fontSize: 13 }}>No geographic data yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {geo.slice(0, 8).map((g) => {
+                const maxFraud = Math.max(...geo.map((x) => x.fraud), 1);
+                return (
+                  <div key={g.code} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <span className="data" style={{ width: 30, fontSize: 12, color: 'var(--color-ink-soft)' }}>{g.code}</span>
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--color-ink)' }}>{g.country}</span>
+                    <div style={{ flex: 1.6, height: 8, background: 'var(--color-surface-2)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ width: `${(g.fraud / maxFraud) * 100}%`, height: '100%', background: 'var(--color-alert)', borderRadius: 999 }} />
+                    </div>
+                    <span className="data" style={{ width: 80, textAlign: 'right', fontSize: 12, color: 'var(--color-ink-soft)' }}>{g.fraud} · {g.fraud_rate}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Top risky entities */}

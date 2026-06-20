@@ -8,7 +8,11 @@ interface Cmd { label: string; hint: string; href: string; icon: string }
 const COMMANDS: Cmd[] = [
   { label: 'Home', hint: 'Landing page', href: '/', icon: '⌂' },
   { label: 'Workspace', hint: 'Live threat stream', href: '/workspace', icon: '◎' },
-  { label: 'Analytics', hint: 'Fraud KPIs & trends', href: '/analytics', icon: '◔' },
+  { label: 'Analytics', hint: 'Fraud KPIs, cost & geo', href: '/analytics', icon: '◔' },
+  { label: 'Fraud rings', hint: 'Link-analysis clusters', href: '/network', icon: '◈' },
+  { label: 'Simulator', hint: 'What-if transaction scoring', href: '/simulator', icon: '⊹' },
+  { label: 'Watchlist', hint: 'Blocklist of bad actors', href: '/watchlist', icon: '⛔' },
+  { label: 'Rules', hint: 'Deterministic rule engine', href: '/rules', icon: '⚑' },
   { label: 'Model Lab', hint: 'Train & promote models', href: '/lab', icon: '⚗' },
   { label: 'Admin', hint: 'Users & audit trail', href: '/admin', icon: '⚙' },
   { label: 'Log in', hint: 'Sign in to VaultStream', href: '/login', icon: '→' },

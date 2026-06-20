@@ -18,6 +18,7 @@ import hashlib
 from typing import Callable, Iterator, Optional
 
 import numpy as np
+import joblib
 
 FEATURE_NAMES = [
     "tx_count_5m",
@@ -276,6 +277,13 @@ def train(
     }
 
     _persist_run(result)
+    # Persist the fitted model so it can be loaded as a shadow challenger.
+    try:
+        os.makedirs(LAB_DIR, exist_ok=True)
+        joblib.dump({"model": model, "algorithm": algorithm, "threshold": result["threshold"]},
+                    os.path.join(LAB_DIR, f"{run_id}.pkl"))
+    except Exception as e:
+        print(f"Warning: failed to persist lab model {run_id}: {e}")
     emit("Done", 100)
     return result
 
@@ -330,6 +338,81 @@ def promote(run_id: str) -> dict:
         json.dump({"run_id": run_id, "promoted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, f, indent=2)
     run["champion"] = True
     return run
+
+
+# ----------------------- Champion / Challenger shadow scoring -----------------------
+# The live 430-feature model is the production *champion*; a promoted Lab run is
+# the *challenger*, scored in shadow on every transaction to measure how often it
+# would disagree before it is ever trusted with a decision.
+
+_shadow_cache: dict = {"run_id": None, "bundle": None}
+_shadow_stats: dict = {"samples": 0, "agree": 0, "disagree": 0,
+                       "challenger_fraud": 0, "live_fraud": 0, "champion_run": None}
+
+
+def _load_champion_bundle():
+    """Load (and cache) the promoted challenger model bundle, or None."""
+    run_id = _champion_id()
+    if not run_id:
+        return None
+    if _shadow_cache["run_id"] == run_id and _shadow_cache["bundle"] is not None:
+        return _shadow_cache["bundle"]
+    path = os.path.join(LAB_DIR, f"{run_id}.pkl")
+    if not os.path.exists(path):
+        return None  # promoted before model persistence existed
+    try:
+        bundle = joblib.load(path)
+        _shadow_cache.update({"run_id": run_id, "bundle": bundle})
+        return bundle
+    except Exception as e:
+        print(f"Warning: failed to load challenger model: {e}")
+        return None
+
+
+def shadow_compare(features8, live_label: str):
+    """Score one transaction with the challenger and record agreement with the
+    live model's verdict. `features8` is the FEATURE_NAMES-ordered vector.
+    Returns the comparison dict, or None when no challenger is available."""
+    bundle = _load_champion_bundle()
+    if bundle is None:
+        return None
+    try:
+        X = np.asarray([features8], dtype=float)
+        score = float(_scores(bundle["model"], bundle["algorithm"], X)[0])
+    except Exception:
+        return None
+    threshold = float(bundle.get("threshold", 0.5))
+    chal_fraud = score >= threshold
+    live_fraud = live_label == "FRAUD"
+    if _shadow_stats["champion_run"] != _shadow_cache["run_id"]:
+        # Reset counters when a new challenger is promoted
+        _shadow_stats.update({"samples": 0, "agree": 0, "disagree": 0,
+                              "challenger_fraud": 0, "live_fraud": 0,
+                              "champion_run": _shadow_cache["run_id"]})
+    _shadow_stats["samples"] += 1
+    _shadow_stats["agree" if chal_fraud == live_fraud else "disagree"] += 1
+    _shadow_stats["challenger_fraud"] += 1 if chal_fraud else 0
+    _shadow_stats["live_fraud"] += 1 if live_fraud else 0
+    return {"challenger_score": round(score, 4), "challenger_fraud": chal_fraud,
+            "live_fraud": live_fraud, "agree": chal_fraud == live_fraud}
+
+
+def shadow_stats() -> dict:
+    s = dict(_shadow_stats)
+    n = s["samples"] or 0
+    s["agreement_rate"] = round(s["agree"] / n, 4) if n else None
+    s["disagreement_rate"] = round(s["disagree"] / n, 4) if n else None
+    s["challenger_fraud_rate"] = round(s["challenger_fraud"] / n, 4) if n else None
+    s["live_fraud_rate"] = round(s["live_fraud"] / n, 4) if n else None
+    s["has_challenger"] = _load_champion_bundle() is not None
+    champ = None
+    for r in list_runs():
+        if r.get("champion"):
+            champ = {"run_id": r["run_id"], "algorithm_label": r.get("algorithm_label"),
+                     "auc": r.get("metrics", {}).get("auc")}
+            break
+    s["champion"] = champ
+    return s
 
 
 def iter_train_events(algorithm: str, sample_size: int, hyperparams: dict) -> Iterator[str]:

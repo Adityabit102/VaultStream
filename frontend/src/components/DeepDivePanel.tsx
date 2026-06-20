@@ -6,6 +6,7 @@ import { useAuth } from './AuthProvider';
 import Link from 'next/link';
 import { getToken, apiUrl } from '@/lib/api';
 import { useRole } from './RoleProvider';
+import { useToast } from './ToastProvider';
 import dynamic from 'next/dynamic';
 
 const ScannerOrb = dynamic(() => import('@/components/three/ScannerOrb'), { ssr: false, loading: () => null });
@@ -16,6 +17,12 @@ const toneFor = (label: string) =>
 const STATUSES = ['open', 'investigating', 'resolved', 'dismissed'] as const;
 
 interface Note { id: string; author: string; body: string; created_at: string }
+interface TimelineEvent { ts: string; kind: string; actor: string; text: string }
+
+const KIND_ICON: Record<string, string> = { detected: '◎', action: '⚑', note: '✎', feedback: '◈' };
+const KIND_COLOR: Record<string, string> = {
+  detected: 'var(--color-violet)', action: 'var(--color-warn)', note: 'var(--color-sky)', feedback: 'var(--color-alert)',
+};
 
 /** Lightweight SVG relationship graph: entity ↔ device / merchant / linked accounts. */
 function EntityGraph({ entityId, deviceShift, accent }: { entityId: string; deviceShift: boolean; accent: string }) {
@@ -54,12 +61,17 @@ export default function DeepDivePanel({
 }) {
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [noteBody, setNoteBody] = useState('');
   const [caseStatus, setCaseStatus] = useState<string>('open');
   const [assignee, setAssignee] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [disposition, setDisposition] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
   const { user } = useAuth();
   const { isAnalyst, isAdmin, isViewer, isAuthenticated } = useRole();
+  const { toast } = useToast();
   const canTakeAction = isAdmin || isAnalyst;
 
   const alertId = alert?.id;
@@ -67,6 +79,13 @@ export default function DeepDivePanel({
     const token = await getToken(role);
     const res = await fetch(apiUrl(`/v1/alerts/${id}/notes`), { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) setNotes((await res.json()).notes || []);
+    const fb = await fetch(apiUrl(`/v1/alerts/${id}/feedback`), { headers: { Authorization: `Bearer ${token}` } });
+    if (fb.ok) {
+      const list = (await fb.json()).feedback || [];
+      if (list.length) setDisposition(list[0].label);
+    }
+    const tl = await fetch(apiUrl(`/v1/alerts/${id}/timeline`), { headers: { Authorization: `Bearer ${token}` } });
+    if (tl.ok) setTimeline((await tl.json()).timeline || []);
   }, []);
 
   useEffect(() => {
@@ -76,6 +95,9 @@ export default function DeepDivePanel({
     setCaseStatus(alert?.status || 'open');
     setAssignee(alert?.assignee || null);
     setNotes([]);
+    setTimeline([]);
+    setDisposition(null);
+    setBlocked(false);
     /* eslint-enable react-hooks/set-state-in-effect */
     loadNotes(alertId, user?.role || 'viewer');
   }, [alertId, alert?.status, alert?.assignee, user?.role, loadNotes]);
@@ -136,8 +158,12 @@ export default function DeepDivePanel({
     const token = await getToken(user.role);
     const res = await takeAction(alert.id, action, token, user.email);
     setLoading(false);
-    if (res && res.success) onActionSuccess(alert.id, action);
-    else window.alert('Failed to record action: ' + (res?.error || 'Unknown error'));
+    if (res && res.success) {
+      onActionSuccess(alert.id, action);
+      toast(`${action === 'freeze' ? 'Account frozen' : 'Alert escalated'}`, action === 'freeze' ? 'alert' : 'warn', 'Action recorded');
+    } else {
+      toast('Failed to record action: ' + (res?.error || 'Unknown error'), 'alert');
+    }
   };
 
   const patchCase = async (path: string, body: object) => {
@@ -195,6 +221,47 @@ export default function DeepDivePanel({
     URL.revokeObjectURL(url);
   };
 
+  const submitFeedback = async (label: string) => {
+    if (!user || !canTakeAction) return;
+    setDisposition(label);
+    const token = await getToken(user.role);
+    await fetch(apiUrl(`/v1/alerts/${alert.id}/feedback`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ label }),
+    });
+  };
+
+  const blockEntity = async () => {
+    if (!user || !canTakeAction) return;
+    setBlocked(true);
+    const token = await getToken(user.role);
+    await fetch(apiUrl('/v1/watchlist'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind: 'entity', value: alert.entity_id, reason: `Blocked from case ${alert.transaction_id || alert.id}` }),
+    });
+  };
+
+  // The report endpoint is auth-gated, so fetch it with the bearer token and
+  // open the returned HTML via a blob URL (a plain new-tab GET can't send auth).
+  const openReport = async () => {
+    if (!user) return;
+    setReportLoading(true);
+    try {
+      const token = await getToken(user.role);
+      const res = await fetch(apiUrl(`/v1/alerts/${alert.id}/report`), { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const blob = new Blob([await res.text()], { type: 'text/html' });
+        window.open(URL.createObjectURL(blob), '_blank');
+      } else {
+        toast('Could not generate case file (alert may not be persisted).', 'alert');
+      }
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   const tone = toneFor(alert.risk_label);
   const accent = tone === 'alert' ? 'var(--color-alert)' : tone === 'warn' ? 'var(--color-warn)' : 'var(--color-safe)';
   const statusTone: Record<string, string> = { open: 'var(--color-alert)', investigating: 'var(--color-warn)', resolved: 'var(--color-safe)', dismissed: 'var(--color-ink-faint)' };
@@ -211,9 +278,14 @@ export default function DeepDivePanel({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
           <span className={`badge badge-${tone}`} style={{ fontSize: 13, padding: '7px 14px' }}>{alert.risk_label}</span>
-          <button onClick={exportCase} title="Export case as JSON" className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 11 }}>
-            ↓ Export
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={exportCase} title="Export case as JSON" className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 11 }}>
+              ↓ JSON
+            </button>
+            <button onClick={openReport} disabled={reportLoading} title="Generate printable SAR case file" className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 11 }}>
+              {reportLoading ? '…' : '📄 Case file'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -246,6 +318,32 @@ export default function DeepDivePanel({
           ))}
         </div>
       </div>
+
+      {/* Analyst disposition — supervised feedback loop + blocklist */}
+      {canTakeAction && (
+        <div style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-line)', borderRadius: 16, padding: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span className="eyebrow">Disposition · trains next model</span>
+            <button onClick={blockEntity} disabled={blocked} title="Add entity to the blocklist"
+              className="btn btn-ghost" style={{ padding: '4px 12px', fontSize: 11, color: blocked ? 'var(--color-safe)' : 'var(--color-alert)' }}>
+              {blocked ? '✓ Blocked' : '⛔ Block entity'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {([['confirmed_fraud', 'Confirmed fraud', 'var(--color-alert)'], ['false_positive', 'False positive', 'var(--color-safe)'], ['unsure', 'Unsure', 'var(--color-ink-faint)']] as [string, string, string][]).map(([val, label, color]) => (
+              <button key={val} onClick={() => submitFeedback(val)}
+                style={{
+                  padding: '6px 12px', borderRadius: 999, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  border: `1px solid ${disposition === val ? color : 'var(--color-line)'}`,
+                  background: disposition === val ? color : 'var(--color-surface)',
+                  color: disposition === val ? '#fff' : 'var(--color-ink-soft)',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Metadata */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -297,9 +395,39 @@ export default function DeepDivePanel({
 
       {/* Entity relationship graph */}
       <div>
-        <div className="eyebrow" style={{ marginBottom: 10 }}>Entity network</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+          <div className="eyebrow">Entity network</div>
+          <Link href={`/entity/${encodeURIComponent(alert.entity_id)}`} style={{ fontSize: 11, color: 'var(--color-violet)', textDecoration: 'none', fontWeight: 600 }}>
+            View profile →
+          </Link>
+        </div>
         <EntityGraph entityId={alert.entity_id} deviceShift={features[4] === 1} accent={accent} />
       </div>
+
+      {/* Case timeline */}
+      {timeline.length > 0 && (
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 12 }}>Case timeline</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+            {timeline.map((e, i) => (
+              <div key={i} style={{ display: 'flex', gap: 12, paddingBottom: i === timeline.length - 1 ? 0 : 16, position: 'relative' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                  <span style={{ width: 22, height: 22, borderRadius: 999, background: 'var(--color-surface)', border: `2px solid ${KIND_COLOR[e.kind] || 'var(--color-line-strong)'}`, color: KIND_COLOR[e.kind] || 'var(--color-ink-soft)', display: 'grid', placeItems: 'center', fontSize: 11, zIndex: 1 }}>
+                    {KIND_ICON[e.kind] || '•'}
+                  </span>
+                  {i !== timeline.length - 1 && <span style={{ flex: 1, width: 2, background: 'var(--color-line)', marginTop: 2 }} />}
+                </div>
+                <div style={{ paddingBottom: 4 }}>
+                  <div style={{ fontSize: 13, color: 'var(--color-ink)', textTransform: e.kind === 'feedback' || e.kind === 'action' ? 'capitalize' : 'none' }}>{e.text}</div>
+                  <div className="data" style={{ fontSize: 10.5, color: 'var(--color-ink-faint)', marginTop: 2 }}>
+                    {e.actor?.split('@')[0]} · {new Date(e.ts).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* SHAP waterfall */}
       <div>

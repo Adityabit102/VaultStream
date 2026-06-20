@@ -77,7 +77,7 @@ function alertsToPoints(alerts: AlertType[]): MockData[] {
       // when real features exist use them; otherwise place near the band but
       // with independent jitter on each axis so points form a cloud, not a line
       amount: amount > 0 ? amount : Math.max(10, s * 2600 + jitter(a.id, 0x9e37) * 1800),
-      velocity: velocity > 0 ? velocity : Math.max(1, s * 34 + jitter(a.id, 0x85eb) * 22),
+      velocity: velocity > 1 ? velocity : Math.max(1, s * 34 + jitter(a.id, 0x85eb) * 22),
       risk_score: s,
       risk_label: a.risk_label,
       entity_id: a.entity_id,

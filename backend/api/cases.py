@@ -50,6 +50,14 @@ async def update_assignee(alert_id: str, req: AssignReq, user: dict = Depends(re
     return {"status": "ok", "id": alert_id, "assignee": req.assignee}
 
 
+@router.get("/v1/alerts/{alert_id}/timeline")
+async def get_timeline(alert_id: str, user: dict = Depends(verify_token)):
+    """Unified chronological case feed — detection, actions, notes, dispositions."""
+    if db.DB_ENABLED:
+        return {"timeline": db.alert_timeline(alert_id)}
+    return {"timeline": []}
+
+
 @router.get("/v1/alerts/{alert_id}/notes")
 async def get_notes(alert_id: str, user: dict = Depends(verify_token)):
     if db.DB_ENABLED:

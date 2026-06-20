@@ -16,7 +16,9 @@ export default function WorkspaceHeader({ modelHash }: { modelHash?: string | nu
   const navItems = [
     { href: '/workspace', label: 'Workspace' },
     { href: '/analytics', label: 'Analytics' },
-    ...(isAnalyst ? [{ href: '/batch', label: 'Batch' }] : []),
+    { href: '/network', label: 'Rings' },
+    { href: '/simulator', label: 'Simulator' },
+    ...(isAnalyst ? [{ href: '/batch', label: 'Batch' }, { href: '/watchlist', label: 'Watchlist' }] : []),
     { href: '/rules', label: 'Rules' },
     { href: '/status', label: 'Status' },
     ...(isAdmin ? [{ href: '/lab', label: 'Model Lab' }, { href: '/admin', label: 'Admin' }] : []),

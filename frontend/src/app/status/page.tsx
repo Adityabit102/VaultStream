@@ -6,7 +6,9 @@ import { Skeleton } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 
 interface Component { name: string; ok: boolean; detail: string }
-interface Status { healthy: boolean; env: string | { region?: string }; components: Component[] }
+interface StatsT { alerts?: number; db_dialect?: string; watchlist?: number; feedback?: number }
+interface ModelT { val_auc?: number; threshold?: number; features?: number; shadow?: { has_challenger?: boolean; samples?: number; agreement_rate?: number | null } }
+interface Status { healthy: boolean; env: string | { region?: string }; components: Component[]; stats?: StatsT; model?: ModelT }
 
 const envLabel = (env: Status['env']) =>
   typeof env === 'string' ? env : env?.region ?? 'local';
@@ -83,6 +85,27 @@ export default function StatusPage() {
               <span className={`badge badge-${c.ok ? 'safe' : 'alert'}`}>{c.ok ? 'Operational' : 'Down'}</span>
             </motion.div>
           ))}
+          {/* Live platform stats */}
+          {(status.stats || status.model) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginTop: 8 }}>
+              {[
+                ['Stored alerts', status.stats?.alerts?.toLocaleString() ?? '—'],
+                ['Database', status.stats?.db_dialect ?? '—'],
+                ['Watchlist', status.stats?.watchlist ?? '—'],
+                ['Feedback labels', status.stats?.feedback ?? '—'],
+                ['Model AUC', status.model?.val_auc != null ? status.model.val_auc.toFixed(3) : '—'],
+                ['Threshold', status.model?.threshold != null ? status.model.threshold.toFixed(3) : '—'],
+                ['Challenger', status.model?.shadow?.has_challenger ? 'shadowing' : 'none'],
+                ['Shadow agree', status.model?.shadow?.agreement_rate != null ? `${(status.model.shadow.agreement_rate * 100).toFixed(0)}%` : '—'],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="lux-card" style={{ padding: '14px 16px' }}>
+                  <div className="data" style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-ink)', textTransform: 'capitalize' }}>{value}</div>
+                  <div className="eyebrow" style={{ fontSize: 9, marginTop: 4 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-ink-faint)', marginTop: 8, padding: '0 4px' }}>
             <span>Environment: <span className="data">{envLabel(status.env)}</span></span>
             {updated && <span>Updated {updated.toLocaleTimeString()}</span>}
