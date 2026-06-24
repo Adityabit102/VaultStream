@@ -21,7 +21,7 @@ export default function DynamicBackground() {
       <div className="dyn-blob dyn-1" />
       <div className="dyn-blob dyn-2" />
       <div className="dyn-blob dyn-3" />
-      <div style={{ position: 'absolute', inset: 0, opacity: 0.9 }}>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.8 }}>
         <AmbientField />
       </div>
 
