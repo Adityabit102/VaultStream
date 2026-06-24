@@ -11,7 +11,7 @@ interface ThemeCtx {
 const Ctx = createContext<ThemeCtx>({ theme: 'light', toggle: () => {}, setTheme: () => {} });
 
 /** Inline script applied before paint to avoid a flash of the wrong theme. */
-export const themeNoFlashScript = `(function(){try{var t=localStorage.getItem('vs_theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
+export const themeNoFlashScript = `(function(){try{var t=localStorage.getItem('vs_theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('light');
