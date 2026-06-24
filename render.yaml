@@ -1,7 +1,7 @@
-# VaultStream — Render blueprint (backend API + Redis).
-# Stack: Frontend → Vercel · Backend → Render · Postgres → Neon (external).
-# Deploy: push to GitHub, then Render → New → Blueprint → pick this repo,
-# then paste DATABASE_URL (your Neon connection string) in the dashboard.
+# VaultStream — Render blueprint (backend API).
+# Stack: Frontend → Vercel · Backend → Render · Postgres → Neon · Redis → Upstash.
+# Deploy: push to GitHub, then Render → New → Blueprint → pick this repo, then
+# paste the secret values (marked sync:false) in the Render dashboard.
 services:
   - type: web
     name: vaultstream-api
@@ -11,36 +11,34 @@ services:
     healthCheckPath: /health
     plan: starter
     envVars:
+      # --- Required ---
       - key: DATABASE_URL
-        sync: false            # paste your Neon connection string: postgresql://USER:PASS@ep-xxx.REGION.aws.neon.tech/vaultstream?sslmode=require
-      - key: LOCAL_REDIS_URL
-        fromService:
-          type: keyvalue
-          name: vaultstream-redis
-          property: connectionString
+        sync: false            # Neon connection string: postgresql://USER:PASS@ep-xxx.REGION.aws.neon.tech/vaultstream?sslmode=require
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false            # Upstash REST URL (https://xxx.upstash.io) — NOT the redis:// URL
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false            # Upstash REST token
       - key: CORS_ORIGINS
-        sync: false            # set to your Vercel URL, e.g. https://vaultstream.vercel.app
+        sync: false            # your Vercel origin, e.g. https://vaultstream.vercel.app (comma-separate multiples)
+      # --- Optional (app degrades gracefully if unset) ---
       - key: SUPABASE_URL
-        sync: false
+        sync: false            # omit all 3 Supabase vars → mock-auth demo mode
       - key: SUPABASE_JWT_SECRET
         sync: false
       - key: SUPABASE_SERVICE_KEY
         sync: false
-      - key: SENTRY_DSN
-        sync: false
-      - key: NOTIFY_WEBHOOK_URL
-        sync: false            # optional Slack/Discord webhook for FRAUD alerts
       - key: GROQ_API_KEY
         sync: false            # powers the VaultAI assistant; without it VaultAI uses the grounded responder
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: ANTHROPIC_API_KEY
+        sync: false            # optional Claude upgrade for VaultAI
+      - key: SENTRY_DSN
+        sync: false
+      - key: NOTIFY_WEBHOOK_URL
+        sync: false            # optional Slack/Discord webhook for FRAUD + spike alerts
       - key: MODEL_PATH
         value: models/fraud_model.pkl
 
-# Postgres is hosted on Neon (external) — set DATABASE_URL above. No Render
-# database is provisioned. Render Key Value (Redis-compatible) backs the
-# feature store below.
-keyValue:
-  - name: vaultstream-redis
-    plan: starter
-    ipAllowList: []
+# Postgres → Neon (external, set DATABASE_URL). Redis → Upstash (external, set
+# UPSTASH_REDIS_REST_URL/TOKEN). No Render-managed datastores are provisioned.
