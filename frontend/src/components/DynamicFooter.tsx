@@ -57,7 +57,7 @@ export default function DynamicFooter() {
           <span className="data" style={{ fontSize: 16, fontWeight: 600, color }}>{value}</span>
         </div>
       ))}
-      <span className="data" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-safe)' }}>● all systems nominal</span>
+      <span className="data" style={{ marginLeft: 'auto', marginRight: 64, fontSize: 11, color: 'var(--color-safe)' }}>● all systems nominal</span>
     </footer>
   );
 }
