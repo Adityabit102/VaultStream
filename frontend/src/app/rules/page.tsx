@@ -121,7 +121,7 @@ export default function RulesPage() {
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
               className="lux-card" style={{ padding: 24, marginBottom: 24, overflow: 'hidden' }}>
               <h3 style={{ fontSize: 18, marginBottom: 18 }}>Create rule</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: 14, marginBottom: 18 }}>
+              <div className="rule-form-head" style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: 14, marginBottom: 18 }}>
                 <label>
                   <span className="eyebrow" style={{ display: 'block', marginBottom: 6, fontSize: 10 }}>Rule name</span>
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="High-value device shift" style={inputStyle} />
@@ -137,7 +137,7 @@ export default function RulesPage() {
               <span className="eyebrow" style={{ display: 'block', marginBottom: 8, fontSize: 10 }}>Conditions (all must match)</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {conditions.map((c, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px 40px', gap: 8, alignItems: 'center' }}>
+                  <div key={i} className="rule-cond-row" style={{ display: 'grid', gridTemplateColumns: '1fr 90px 130px 40px', gap: 8, alignItems: 'center' }}>
                     <select value={c.field} onChange={(e) => updateCondition(i, { field: e.target.value })} style={inputStyle}>
                       {FIELDS.map((f) => <option key={f} value={f}>{FIELD_LABELS[f]}</option>)}
                     </select>
@@ -156,7 +156,7 @@ export default function RulesPage() {
               {backtest && (
                 <div style={{ marginTop: 18, padding: 18, borderRadius: 16, background: 'var(--color-surface-2)', border: '1px solid var(--color-line)' }}>
                   <div className="eyebrow" style={{ marginBottom: 14 }}>Backtest · {backtest.total_scanned.toLocaleString()} historical alerts</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: backtest.samples.length ? 14 : 0 }}>
+                  <div className="rule-bt-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: backtest.samples.length ? 14 : 0 }}>
                     {([
                       ['Would flag', backtest.matched.toLocaleString(), 'var(--color-ink)'],
                       ['Match rate', `${backtest.match_rate}%`, 'var(--color-violet)'],

@@ -24,7 +24,7 @@ export default function SiteFooter() {
   return (
     <footer style={{ position: 'relative', borderTop: '1px solid var(--color-line)', marginTop: 40 }}>
       <div
-        className="section"
+        className="section footer-top-grid"
         style={{
           paddingTop: 72,
           paddingBottom: 48,

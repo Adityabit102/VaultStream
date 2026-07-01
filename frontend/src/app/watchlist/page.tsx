@@ -72,7 +72,7 @@ export default function WatchlistPage() {
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
               className="lux-card" style={{ padding: 24, marginBottom: 24, overflow: 'hidden' }}>
               <h3 style={{ fontSize: 18, marginBottom: 18 }}>Block an actor</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 14, marginBottom: 14 }}>
+              <div className="watch-form-grid" style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 14, marginBottom: 14 }}>
                 <label>
                   <span className="eyebrow" style={{ display: 'block', marginBottom: 6, fontSize: 10 }}>Kind</span>
                   <select value={kind} onChange={(e) => setKind(e.target.value)} style={inputStyle}>
