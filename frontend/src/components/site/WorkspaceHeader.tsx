@@ -18,7 +18,7 @@ export default function WorkspaceHeader({ modelHash }: { modelHash?: string | nu
     { href: '/analytics', label: 'Analytics' },
     { href: '/network', label: 'Rings' },
     { href: '/simulator', label: 'Simulator' },
-    ...(isAnalyst ? [{ href: '/batch', label: 'Batch' }, { href: '/watchlist', label: 'Watchlist' }] : []),
+    ...(isAnalyst ? [{ href: '/batch', label: 'Batch' }, { href: '/pipeline', label: 'Pipeline' }, { href: '/watchlist', label: 'Watchlist' }] : []),
     { href: '/rules', label: 'Rules' },
     { href: '/status', label: 'Status' },
     ...(isAdmin ? [{ href: '/lab', label: 'Model Lab' }, { href: '/admin', label: 'Admin' }] : []),

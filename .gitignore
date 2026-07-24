@@ -4,6 +4,13 @@ node_modules/
 __pycache__/
 *.pyc
 
+# Batch pipeline local runtime (Spark venv, Airflow home, Spark scratch dirs)
+.venv-batch/
+.airflow-home/
+spark-warehouse/
+metastore_db/
+derby.log
+
 # Environment variables
 .env
 .env.local

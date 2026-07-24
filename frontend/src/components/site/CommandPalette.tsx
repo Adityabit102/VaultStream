@@ -13,6 +13,7 @@ const COMMANDS: Cmd[] = [
   { label: 'Simulator', hint: 'What-if transaction scoring', href: '/simulator', icon: '⊹' },
   { label: 'Watchlist', hint: 'Blocklist of bad actors', href: '/watchlist', icon: '⛔' },
   { label: 'Rules', hint: 'Deterministic rule engine', href: '/rules', icon: '⚑' },
+  { label: 'Batch pipeline', hint: 'PySpark Medallion feature backfill', href: '/pipeline', icon: '▤' },
   { label: 'Model Lab', hint: 'Train & promote models', href: '/lab', icon: '⚗' },
   { label: 'Admin', hint: 'Users & audit trail', href: '/admin', icon: '⚙' },
   { label: 'Log in', hint: 'Sign in to VaultStream', href: '/login', icon: '→' },

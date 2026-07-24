@@ -1,0 +1,21 @@
+# Batch pipeline dependencies -- kept SEPARATE from backend/requirements.txt on
+# purpose. None of this is installed in the deployed FastAPI service; the batch
+# path runs on Databricks (or a local Spark) as its own job.
+#
+# Install into an isolated venv:
+#   python -m venv .venv-batch && source .venv-batch/bin/activate
+#   pip install -r batch_pipeline/requirements.txt
+#
+# On Databricks these come pre-installed on the cluster runtime (DBR 14.x+),
+# so requirements.txt is only needed for local runs.
+
+pyspark==3.5.1
+delta-spark==3.2.0          # Delta Lake; the pipeline falls back to Parquet if absent
+pandas==2.2.2               # sample-data generation + the pandas parity test
+
+# Phase 3 dashboard (optional -- only needed to run dashboard/dq_dashboard.py)
+plotly==5.22.0
+dash==2.17.1
+
+# Phase 4 orchestration (optional -- only needed if you actually run Airflow)
+# apache-airflow==2.9.2

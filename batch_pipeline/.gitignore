@@ -1,0 +1,14 @@
+# Pipeline run artifacts (all regenerable) -- keep the repo clean.
+warehouse/
+warehouse_real/
+warehouse_airflow/
+warehouse*/
+sample_data/
+export_manifest.json
+dashboard/dq_report_latest.json
+.venv-batch/
+__pycache__/
+*.pyc
+spark-warehouse/
+metastore_db/
+derby.log
