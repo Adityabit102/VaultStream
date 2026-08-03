@@ -25,6 +25,7 @@ from api.network import router as network_router
 from api.reports import router as reports_router
 from api.simulator import router as simulator_router
 from api.entities import router as entities_router
+from api.graph import router as graph_router
 from observability import router as metrics_router
 from limiter import limiter
 
@@ -89,6 +90,7 @@ app.include_router(network_router)
 app.include_router(reports_router)
 app.include_router(simulator_router)
 app.include_router(entities_router)
+app.include_router(graph_router)
 app.include_router(metrics_router)
 
 # Reflect the live model AUC in metrics on boot

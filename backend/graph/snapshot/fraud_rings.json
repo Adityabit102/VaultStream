@@ -1,0 +1,513 @@
+{
+ "generated_at": "2026-08-03T14:37:45+00:00",
+ "source": "snapshot",
+ "params": {
+  "transactions_scanned": 590540,
+  "min_shared_identifiers": 2,
+  "min_shared_kinds": 2,
+  "max_identifier_degree": 20,
+  "min_ring_size": 3
+ },
+ "stats": {
+  "accounts": 39974,
+  "transactions": 590540,
+  "devices": 1940,
+  "cards": 14893,
+  "addresses": 437,
+  "shared_links": 49
+ },
+ "algorithms": {
+  "components": 35,
+  "communities": 35,
+  "modularity": 0.9552,
+  "account_links": 49
+ },
+ "rings": [
+  {
+   "id": "ring-15-16",
+   "component_id": 15,
+   "community_id": 16,
+   "size": 4,
+   "accounts": [
+    "acct_12511_191.0",
+    "acct_12511_226.0",
+    "acct_12511_272.0",
+    "acct_12511_325.0"
+   ],
+   "edges": [
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_12511_191.0",
+     "target": "acct_12511_226.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_12511_191.0",
+     "target": "acct_12511_272.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_12511_191.0",
+     "target": "acct_12511_325.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_12511_226.0",
+     "target": "acct_12511_272.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_12511_226.0",
+     "target": "acct_12511_325.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_12511_272.0",
+     "target": "acct_12511_325.0"
+    }
+   ],
+   "identifiers": [
+    {
+     "kind": "Card",
+     "members": [
+      "acct_12511_191.0",
+      "acct_12511_226.0",
+      "acct_12511_272.0",
+      "acct_12511_325.0"
+     ],
+     "label": "mastercard \u2022\u2022\u2022\u20222511 credit",
+     "id": "card_12511|404.0|150.0|mastercard|102.0|credit",
+     "accounts": 4
+    },
+    {
+     "kind": "Device",
+     "members": [
+      "acct_12511_191.0",
+      "acct_12511_226.0",
+      "acct_12511_272.0",
+      "acct_12511_325.0"
+     ],
+     "label": "SM-G550T1 Build/MMB29K (mobile)",
+     "id": "dev_mobile|SM-G550T1 Build/MMB29K",
+     "accounts": 4
+    }
+   ],
+   "shared_kinds": {
+    "Card": 1,
+    "Device": 1
+   },
+   "risk_score": 0.7659,
+   "peak_risk": 0.9994,
+   "transactions": 12,
+   "fraud_transactions": 7,
+   "total_amount": 3430.0
+  },
+  {
+   "id": "ring-46-47",
+   "component_id": 46,
+   "community_id": 47,
+   "size": 3,
+   "accounts": [
+    "acct_3702_161.0",
+    "acct_3702_216.0",
+    "acct_3702_na"
+   ],
+   "edges": [
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_3702_161.0",
+     "target": "acct_3702_216.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_3702_161.0",
+     "target": "acct_3702_na"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_3702_216.0",
+     "target": "acct_3702_na"
+    }
+   ],
+   "identifiers": [
+    {
+     "kind": "Card",
+     "members": [
+      "acct_3702_161.0",
+      "acct_3702_216.0",
+      "acct_3702_na"
+     ],
+     "label": "visa \u2022\u2022\u2022\u20223702 debit",
+     "id": "card_3702|311.0|185.0|visa|102.0|debit",
+     "accounts": 3
+    },
+    {
+     "kind": "Device",
+     "members": [
+      "acct_3702_161.0",
+      "acct_3702_216.0",
+      "acct_3702_na"
+     ],
+     "label": "rv:31.0 (desktop)",
+     "id": "dev_desktop|rv:31.0",
+     "accounts": 3
+    }
+   ],
+   "shared_kinds": {
+    "Card": 1,
+    "Device": 1
+   },
+   "risk_score": 0.1301,
+   "peak_risk": 0.9985,
+   "transactions": 130,
+   "fraud_transactions": 46,
+   "total_amount": 7414.16
+  },
+  {
+   "id": "ring-25-26",
+   "component_id": 25,
+   "community_id": 26,
+   "size": 4,
+   "accounts": [
+    "acct_16136_161.0",
+    "acct_16136_465.0",
+    "acct_16136_508.0",
+    "acct_16136_na"
+   ],
+   "edges": [
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_16136_161.0",
+     "target": "acct_16136_na"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_16136_465.0",
+     "target": "acct_16136_na"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_16136_508.0",
+     "target": "acct_16136_na"
+    }
+   ],
+   "identifiers": [
+    {
+     "kind": "Device",
+     "members": [
+      "acct_16136_161.0",
+      "acct_16136_na"
+     ],
+     "label": "Moto E (4) Build/NMA26.42-19 (mobile)",
+     "id": "dev_mobile|Moto E (4) Build/NMA26.42-19",
+     "accounts": 2
+    },
+    {
+     "kind": "Card",
+     "members": [
+      "acct_16136_161.0",
+      "acct_16136_465.0",
+      "acct_16136_508.0",
+      "acct_16136_na"
+     ],
+     "label": "visa \u2022\u2022\u2022\u20226136 debit",
+     "id": "card_16136|204.0|185.0|visa|138.0|debit",
+     "accounts": 4
+    },
+    {
+     "kind": "Device",
+     "members": [
+      "acct_16136_465.0",
+      "acct_16136_na"
+     ],
+     "label": "CHC-U03 Build/HuaweiCHC-U03 (mobile)",
+     "id": "dev_mobile|CHC-U03 Build/HuaweiCHC-U03",
+     "accounts": 2
+    },
+    {
+     "kind": "Device",
+     "members": [
+      "acct_16136_508.0",
+      "acct_16136_na"
+     ],
+     "label": "E5506 Build/29.1.A.0.101 (mobile)",
+     "id": "dev_mobile|E5506 Build/29.1.A.0.101",
+     "accounts": 2
+    }
+   ],
+   "shared_kinds": {
+    "Device": 3,
+    "Card": 1
+   },
+   "risk_score": 0.0186,
+   "peak_risk": 0.9981,
+   "transactions": 2012,
+   "fraud_transactions": 71,
+   "total_amount": 62129.87
+  },
+  {
+   "id": "ring-35-36",
+   "component_id": 35,
+   "community_id": 36,
+   "size": 5,
+   "accounts": [
+    "acct_17188_299.0",
+    "acct_17188_310.0",
+    "acct_2744_299.0",
+    "acct_2803_299.0",
+    "acct_2803_337.0"
+   ],
+   "edges": [
+    {
+     "shared": 2,
+     "kinds": [
+      "Address",
+      "Device"
+     ],
+     "source": "acct_17188_299.0",
+     "target": "acct_2744_299.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Address",
+      "Device"
+     ],
+     "source": "acct_17188_299.0",
+     "target": "acct_2803_299.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_17188_299.0",
+     "target": "acct_17188_310.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_2803_299.0",
+     "target": "acct_2803_337.0"
+    }
+   ],
+   "identifiers": [
+    {
+     "kind": "Device",
+     "members": [
+      "acct_17188_299.0",
+      "acct_17188_310.0"
+     ],
+     "label": "KFGIWI Build/LVY48F (mobile)",
+     "id": "dev_mobile|KFGIWI Build/LVY48F",
+     "accounts": 2
+    },
+    {
+     "kind": "Device",
+     "members": [
+      "acct_17188_299.0",
+      "acct_2803_299.0"
+     ],
+     "label": "Z956 Build/MMB29M (mobile)",
+     "id": "dev_mobile|Z956 Build/MMB29M",
+     "accounts": 2
+    },
+    {
+     "kind": "Device",
+     "members": [
+      "acct_17188_299.0",
+      "acct_2744_299.0"
+     ],
+     "label": "SM-J727T Build/NRD90M (mobile)",
+     "id": "dev_mobile|SM-J727T Build/NRD90M",
+     "accounts": 2
+    },
+    {
+     "kind": "Card",
+     "members": [
+      "acct_17188_299.0",
+      "acct_17188_310.0"
+     ],
+     "label": "card \u2022\u2022\u2022\u20227188 ",
+     "id": "card_17188|||||",
+     "accounts": 2
+    },
+    {
+     "kind": "Address",
+     "members": [
+      "acct_17188_299.0",
+      "acct_2744_299.0"
+     ],
+     "label": "addr 299.0 / 34.0",
+     "id": "addr_299.0|34.0",
+     "accounts": 2
+    },
+    {
+     "kind": "Address",
+     "members": [
+      "acct_17188_299.0",
+      "acct_2803_299.0"
+     ],
+     "label": "addr 299.0 / 27.0",
+     "id": "addr_299.0|27.0",
+     "accounts": 2
+    },
+    {
+     "kind": "Device",
+     "members": [
+      "acct_2803_299.0",
+      "acct_2803_337.0"
+     ],
+     "label": "SAMSUNG-SM-G920A Build/NRD90M (mobile)",
+     "id": "dev_mobile|SAMSUNG-SM-G920A Build/NRD90M",
+     "accounts": 2
+    },
+    {
+     "kind": "Card",
+     "members": [
+      "acct_2803_299.0",
+      "acct_2803_337.0"
+     ],
+     "label": "card \u2022\u2022\u2022\u20222803 ",
+     "id": "card_2803|||||",
+     "accounts": 2
+    }
+   ],
+   "shared_kinds": {
+    "Device": 4,
+    "Card": 2,
+    "Address": 2
+   },
+   "risk_score": 0.0125,
+   "peak_risk": 0.9977,
+   "transactions": 9163,
+   "fraud_transactions": 164,
+   "total_amount": 1279798.88
+  },
+  {
+   "id": "ring-0-1",
+   "component_id": 0,
+   "community_id": 1,
+   "size": 3,
+   "accounts": [
+    "acct_10682_123.0",
+    "acct_10682_220.0",
+    "acct_10682_469.0"
+   ],
+   "edges": [
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_10682_123.0",
+     "target": "acct_10682_220.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_10682_123.0",
+     "target": "acct_10682_469.0"
+    },
+    {
+     "shared": 2,
+     "kinds": [
+      "Card",
+      "Device"
+     ],
+     "source": "acct_10682_220.0",
+     "target": "acct_10682_469.0"
+    }
+   ],
+   "identifiers": [
+    {
+     "kind": "Card",
+     "members": [
+      "acct_10682_123.0",
+      "acct_10682_220.0",
+      "acct_10682_469.0"
+     ],
+     "label": "mastercard \u2022\u2022\u2022\u20220682 debit",
+     "id": "card_10682|514.0|150.0|mastercard|224.0|debit",
+     "accounts": 3
+    },
+    {
+     "kind": "Device",
+     "members": [
+      "acct_10682_123.0",
+      "acct_10682_220.0",
+      "acct_10682_469.0"
+     ],
+     "label": "HTC One M9 Build/NRD90M (mobile)",
+     "id": "dev_mobile|HTC One M9 Build/NRD90M",
+     "accounts": 3
+    }
+   ],
+   "shared_kinds": {
+    "Card": 1,
+    "Device": 1
+   },
+   "risk_score": 0.0125,
+   "peak_risk": 0.0193,
+   "transactions": 6,
+   "fraud_transactions": 0,
+   "total_amount": 446.0
+  }
+ ]
+}

@@ -78,10 +78,11 @@ feeding analyst dispositions back into model training.
 - **SAR / case-file export** — a printable, self-contained investigation report.
 - **Per-entity behavioral profile** — an account's history, baseline, and σ-deviation of latest activity.
 
-**Intelligence & analytics** (`/analytics`, `/network`)
+**Intelligence & analytics** (`/analytics`, `/network`, `/graph`)
 - KPI dashboard: volume, verdict mix, amount blocked, top risky entities.
 - **Cost/impact framing** (value caught, exposure, FP review cost), geo breakdown, outcome-monitoring spike alerts.
 - **Fraud-ring link analysis** — connected-component clustering surfaces coordinated rings.
+- **Knowledge-graph ring detection** (`/graph`) — Neo4j + GDS over shared devices, cards and addresses. See below.
 
 **MLOps — Model Lab** (`/lab`)
 - 4 algorithms with live SSE training progress and full evaluation metrics.
@@ -148,11 +149,66 @@ scored, broadcast, and persisted even if the streaming consumer (or Kafka, or Re
   algorithm** for amount z-scores (no history re-scan), device-shift detection, and a Redis
   ZSET for unique-merchant counts with time-based eviction.
 
+## Knowledge graph — fraud-ring detection (`/graph`)
+
+Per-transaction scoring is blind to coordination. A ring can spread activity across several
+accounts so that every individual transaction looks unremarkable, while the *pattern* — one
+phone, five "different" people — is the actual signal. This layer models that pattern as a
+graph and runs community detection over it.
+
+It is **additive**: a new module, a new route, a new page. The XGBoost model, SHAP,
+Kafka/Redpanda streaming, the Redis feature store, the PySpark/Delta batch job, RBAC and
+every existing test are untouched.
+
+**Schema**
+
+```
+(:Account)-[:USED_DEVICE]->(:Device)     Account   card1 + addr1 (derived)
+(:Account)-[:USED_CARD]->(:Card)         Device    DeviceType + DeviceInfo
+(:Account)-[:USED_ADDRESS]->(:Address)   Card      card1…card6 fingerprint
+                                         Address   addr1 + addr2
+(:Account)-[:SHARED_IDENTIFIERS]->(:Account)   ← materialised by detection
+```
+
+**Pipeline** — `backend/scripts/ingest_graph.py` reads the same cleaned IEEE-CIS data the model
+was trained on, scores it with the **existing** XGBoost artifact and label encoders, and batch-loads
+it into Neo4j via `UNWIND` + `MERGE`. Detection then runs entirely in Cypher: shared-identifier
+clustering, then **GDS Weakly Connected Components**, then **Louvain** for sub-community structure.
+A ring's risk is the mean of its members' mean transaction scores — no new model.
+
+**Two honest caveats**
+
+- **No IP clustering.** IEEE-CIS ships no IP field. Identity here is device + card + address only.
+- **`Account` is derived, not given.** There is no account column, so an account is `card1 + addr1`
+  ("this card at this billing address") — a simplification of the Kaggle UID heuristic, which also
+  adds a `D1`-derived card-open day. That term is null or noisy for a large share of rows and
+  shatters one real cardholder into dozens of nodes, so it is deliberately left out.
+
+Because the account key is built from card1 and addr1, a shared card *alone* is weak evidence.
+Detection therefore requires **two shared identifiers spanning two different kinds** (a device
+*and* a card, say). Identifiers touched by more than 20 accounts are population-level attributes
+(`DeviceInfo = "Windows"`), not rings, and are excluded.
+
+**What it finds** — over all 590,540 transactions: 39,974 accounts, 49 shared-identifier links,
+5 rings. The strongest is 4 accounts on one card across **four different billing addresses**, all
+transacting from a single Samsung SM-G550T1 — **7 of 12 transactions labelled fraud** in the source
+data, ring risk 77%. Another spans **three distinct cards** joined by four shared devices.
+
+```bash
+docker compose up -d neo4j                       # Neo4j 5.26 + GDS plugin
+cd backend && python scripts/ingest_graph.py     # ingest + detect + write snapshot
+```
+
+`GET /graph/fraud-rings` reads live Neo4j when `NEO4J_URI` is set and reachable, and otherwise
+serves the batch snapshot committed at `backend/graph/snapshot/fraud_rings.json`. Production runs
+no graph database and serves the snapshot, so the deploy needs no new infrastructure — and if
+Neo4j disappears mid-flight, the endpoint degrades to the snapshot instead of failing.
+
 ## Quick start (local)
 
 ```bash
 # 1. infra (optional — the app degrades gracefully without it)
-docker compose up -d redpanda          # + redis (see docker-compose.yml)
+docker compose up -d redpanda          # + redis, neo4j (see docker-compose.yml)
 
 # 2. backend  →  http://localhost:8000
 cd backend && python -m venv .venv && source .venv/bin/activate
@@ -189,14 +245,17 @@ A `render.yaml` blueprint and a full env-var reference are in **[DEPLOY.md](DEPL
 
 VaultStream is designed to run with **zero managed services**: no Kafka → synchronous scoring;
 no Redis → in-memory feature store; no Supabase → mock-auth demo mode; no Groq/Anthropic key →
-a grounded assistant responder. *It deploys and demos even if every external dependency is down.*
+a grounded assistant responder; no Neo4j → the knowledge graph serves its batch snapshot.
+*It deploys and demos even if every external dependency is down.*
 
 ## Repository layout
 
 ```
 backend/    FastAPI app
   api/        routers: ingest, predict, alerts, cases, rules, watchlist, feedback,
-              network (rings), reports (SAR), simulator, entities, model_lab, insights…
+              network (rings), graph (knowledge-graph rings), reports (SAR), simulator,
+              entities, model_lab, insights…
+  graph/      knowledge-graph layer: schema, Cypher, Neo4j client, ring snapshot
   ml/         training pipeline + Model Lab trainer (trainer.py)
   database/   SQLAlchemy models + 3-tier persistence (db.py)
 frontend/   Next.js app — design system, fx/3D components, pages, Model Lab UI

@@ -57,3 +57,6 @@ prometheus-client==0.21.1
 python-multipart==0.0.20
 # Optional: enables the Claude-backed VaultAI path. Works without it (grounded responder).
 anthropic==0.40.0
+# Knowledge-graph fraud rings. Only needed for the live Neo4j path; production
+# serves the committed snapshot and never opens a connection.
+neo4j==5.28.2

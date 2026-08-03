@@ -10,6 +10,7 @@ const COMMANDS: Cmd[] = [
   { label: 'Workspace', hint: 'Live threat stream', href: '/workspace', icon: '◎' },
   { label: 'Analytics', hint: 'Fraud KPIs, cost & geo', href: '/analytics', icon: '◔' },
   { label: 'Fraud rings', hint: 'Link-analysis clusters', href: '/network', icon: '◈' },
+  { label: 'Knowledge graph', hint: 'Ring detection over shared identifiers', href: '/graph', icon: '⬡' },
   { label: 'Simulator', hint: 'What-if transaction scoring', href: '/simulator', icon: '⊹' },
   { label: 'Watchlist', hint: 'Blocklist of bad actors', href: '/watchlist', icon: '⛔' },
   { label: 'Rules', hint: 'Deterministic rule engine', href: '/rules', icon: '⚑' },
